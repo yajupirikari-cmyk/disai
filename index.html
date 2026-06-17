@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Bot Builder</title>
+    <meta name="description" content="AIを活用してDiscordボットのコードを自動生成">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Notification Banner -->
+    <div id="notification-banner" class="notification-banner hidden">
+        <div class="notification-content">
+            <div class="notification-icon-wrap">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            </div>
+            <div class="notification-text">
+                <strong id="notification-title">APIキーエラー</strong>
+                <p id="notification-message"></p>
+            </div>
+            <div class="notification-actions">
+                <button id="notification-delete-btn" class="btn btn-danger-sm">削除する</button>
+                <button id="notification-dismiss-btn" class="btn btn-ghost-sm">そのままにする</button>
+            </div>
+            <button id="notification-close" class="notification-close">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- HOME SCREEN -->
+    <div id="home-screen" class="screen active">
+        <header class="header">
+            <div class="header-left">
+                <div class="logo-mark">DB</div>
+                <h1 class="logo-text">Discord Bot Builder</h1>
+            </div>
+            <div class="header-right">
+                <button id="settings-btn-home" class="btn btn-icon" title="設定">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+            </div>
+        </header>
+        <main class="home-main">
+            <div class="home-hero">
+                <h2 class="hero-title">あなたのプロジェクト</h2>
+                <p class="hero-subtitle">AIと会話してDiscordボットを作成する</p>
+            </div>
+            <div id="projects-grid" class="projects-grid">
+                <button id="new-project-btn" class="project-card project-card--new">
+                    <div class="new-project-icon">
+                        <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </div>
+                    <span class="new-project-label">新規作成</span>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- EDITOR SCREEN -->
+    <div id="editor-screen" class="screen">
+        <header class="header">
+            <div class="header-left">
+                <button id="home-btn" class="btn btn-icon" title="ホームに戻る">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                </button>
+                <span class="header-divider"></span>
+                <h1 id="project-title" class="project-title">プロジェクト名</h1>
+            </div>
+            <div class="header-right">
+                <button id="settings-btn-editor" class="btn btn-icon" title="設定">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+            </div>
+        </header>
+        <main class="editor-main">
+            <!-- Code Panel -->
+            <div class="editor-panel">
+                <div class="tabs-bar">
+                    <div id="file-tabs" class="file-tabs"></div>
+                    <button id="add-tab-btn" class="btn btn-icon-sm" title="ファイルを追加">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    </button>
+                </div>
+                <div class="code-container">
+                    <div class="code-toolbar">
+                        <span id="current-file-name" class="current-file-label">main.py</span>
+                        <button id="copy-code-btn" class="btn btn-sm">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                            <span>コピー</span>
+                        </button>
+                    </div>
+                    <div id="code-display" class="code-display">
+                        <div id="line-numbers" class="line-numbers"></div>
+                        <pre><code id="code-content" class="language-python"></code></pre>
+                    </div>
+                    <div id="code-empty-state" class="code-empty-state">
+                        <svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        <p>右のチャットでAIに指示して<br>コードを生成しましょう</p>
+                    </div>
+                </div>
+                <!-- Review Progress -->
+                <div id="review-progress" class="review-progress hidden">
+                    <div class="review-steps">
+                        <div class="review-step" data-step="1">
+                            <div class="step-dot"></div>
+                            <span>コード生成</span>
+                        </div>
+                        <div class="review-step-line"></div>
+                        <div class="review-step" data-step="2">
+                            <div class="step-dot"></div>
+                            <span>バグチェック</span>
+                        </div>
+                        <div class="review-step-line"></div>
+                        <div class="review-step" data-step="3">
+                            <div class="step-dot"></div>
+                            <span>最終確認</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <p id="progress-text" class="progress-text">準備中...</p>
+                </div>
+            </div>
+
+            <div class="panel-resizer" id="panel-resizer"></div>
+
+            <!-- Chat Panel -->
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <h2 class="chat-title">AI チャット</h2>
+                    <span id="active-provider-badge" class="provider-badge">未設定</span>
+                </div>
+                <div id="chat-messages" class="chat-messages">
+                    <div class="welcome-message">
+                        <div class="welcome-icon">
+                            <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="m2 14 6-6"/><path d="m14 20 8-8"/></svg>
+                        </div>
+                        <p class="welcome-text">作りたいDiscordボットの内容を教えてください。</p>
+                        <p class="welcome-hint">例: 音楽再生機能のあるBotを作って</p>
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <textarea id="chat-input" class="chat-input" placeholder="メッセージを入力..." rows="2"></textarea>
+                    <button id="send-btn" class="btn btn-primary btn-send" disabled>
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>設定</h2>
+                <button id="settings-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <section class="settings-section">
+                    <h3 class="section-title">AIプロバイダー</h3>
+                    <p class="section-desc">使用するAIサービスのAPIキーを登録してください。どのAIのAPIでも利用できます。</p>
+                    <div id="api-keys-list" class="api-keys-list"></div>
+                    <button id="add-api-key-btn" class="btn btn-secondary btn-add-provider">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        <span>プロバイダーを追加</span>
+                    </button>
+                </section>
+                <hr class="divider">
+                <section class="settings-section">
+                    <h3 class="section-title">使用するAI</h3>
+                    <p class="section-desc">チャットで使用するプロバイダーとモデルを選択してください。</p>
+                    <div class="active-ai-row">
+                        <div class="form-group">
+                            <label for="active-provider-select">プロバイダー</label>
+                            <select id="active-provider-select" class="select"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="active-model-input">モデル名</label>
+                            <input type="text" id="active-model-input" class="input" placeholder="例: llama-3.3-70b-versatile">
+                        </div>
+                    </div>
+                </section>
+            </div>
+            <div class="modal-footer">
+                <button id="settings-cancel" class="btn btn-ghost">キャンセル</button>
+                <button id="settings-save" class="btn btn-primary">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW PROJECT MODAL -->
+    <div id="new-project-modal" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h2>新規プロジェクト</h2>
+                <button id="new-project-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="project-name-input">プロジェクト名</label>
+                    <input type="text" id="project-name-input" class="input" placeholder="例: 音楽Bot">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="new-project-cancel" class="btn btn-ghost">キャンセル</button>
+                <button id="new-project-create" class="btn btn-primary">作成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD FILE MODAL -->
+    <div id="add-file-modal" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h2>ファイルを追加</h2>
+                <button id="add-file-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-file-input">ファイル名</label>
+                    <input type="text" id="add-file-input" class="input" placeholder="例: utils.py">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="add-file-cancel" class="btn btn-ghost">キャンセル</button>
+                <button id="add-file-create" class="btn btn-primary">追加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RENAME FILE MODAL -->
+    <div id="rename-file-modal" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h2>ファイル名を変更</h2>
+                <button id="rename-file-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="rename-file-input">新しいファイル名</label>
+                    <input type="text" id="rename-file-input" class="input" placeholder="例: commands.py">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="rename-file-cancel" class="btn btn-ghost">キャンセル</button>
+                <button id="rename-file-save" class="btn btn-primary">変更</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DELETE CONFIRM MODAL -->
+    <div id="delete-confirm-modal" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h2>削除の確認</h2>
+                <button id="delete-confirm-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="delete-confirm-message" class="delete-message">このプロジェクトを削除しますか？この操作は元に戻せません。</p>
+            </div>
+            <div class="modal-footer">
+                <button id="delete-confirm-cancel" class="btn btn-ghost">キャンセル</button>
+                <button id="delete-confirm-ok" class="btn btn-danger">削除</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
