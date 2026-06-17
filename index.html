@@ -1,17 +1,21 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Discord Bot Builder</title>
-    <meta name="description" content="AIを活用してDiscordボットのコードを自動生成">
+    <meta name="description" content="AIと会話してDiscordボットを自動生成">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
+    <!-- Monaco Editor -->
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- Notification Banner -->
     <div id="notification-banner" class="notification-banner hidden">
@@ -41,6 +45,14 @@
                 <h1 class="logo-text">Discord Bot Builder</h1>
             </div>
             <div class="header-right">
+                <button id="theme-btn-home" class="btn btn-icon" title="テーマ切り替え">
+                    <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                    <svg class="icon icon-moon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                </button>
+                <button id="import-project-btn" class="btn btn-secondary btn-sm" title="プロジェクトをインポート">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>インポート</span>
+                </button>
                 <button id="settings-btn-home" class="btn btn-icon" title="設定">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
@@ -50,6 +62,18 @@
             <div class="home-hero">
                 <h2 class="hero-title">あなたのプロジェクト</h2>
                 <p class="hero-subtitle">AIと会話してDiscordボットを作成する</p>
+            </div>
+            <!-- Template Gallery -->
+            <div class="template-section">
+                <h3 class="section-label">テンプレートから始める</h3>
+                <div class="template-grid" id="template-grid"></div>
+            </div>
+            <div class="section-label-row">
+                <h3 class="section-label">プロジェクト</h3>
+                <div class="search-wrap">
+                    <svg class="icon icon-sm search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" id="project-search" class="search-input" placeholder="プロジェクトを検索...">
+                </div>
             </div>
             <div id="projects-grid" class="projects-grid">
                 <button id="new-project-btn" class="project-card project-card--new">
@@ -66,13 +90,21 @@
     <div id="editor-screen" class="screen">
         <header class="header">
             <div class="header-left">
-                <button id="home-btn" class="btn btn-icon" title="ホームに戻る">
+                <button id="home-btn" class="btn btn-icon" title="ホームに戻る (Ctrl+H)">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
                 </button>
                 <span class="header-divider"></span>
                 <h1 id="project-title" class="project-title">プロジェクト名</h1>
             </div>
             <div class="header-right">
+                <button id="export-project-btn" class="btn btn-secondary btn-sm" title="プロジェクトをエクスポート">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>エクスポート</span>
+                </button>
+                <button id="theme-btn-editor" class="btn btn-icon" title="テーマ切り替え">
+                    <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+                    <svg class="icon icon-moon hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                </button>
                 <button id="settings-btn-editor" class="btn btn-icon" title="設定">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
@@ -90,41 +122,49 @@
                 <div class="code-container">
                     <div class="code-toolbar">
                         <span id="current-file-name" class="current-file-label">main.py</span>
-                        <button id="copy-code-btn" class="btn btn-sm">
-                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                            <span>コピー</span>
-                        </button>
+                        <div class="code-toolbar-actions">
+                            <button id="download-file-btn" class="btn btn-sm" title="このファイルをダウンロード">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                <span>DL</span>
+                            </button>
+                            <button id="diff-toggle-btn" class="btn btn-sm" title="差分表示">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V4M5 12l7-7 7 7"/></svg>
+                                <span>差分</span>
+                            </button>
+                            <button id="copy-code-btn" class="btn btn-sm">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                <span>コピー</span>
+                            </button>
+                        </div>
                     </div>
-                    <div id="code-display" class="code-display">
-                        <div id="line-numbers" class="line-numbers"></div>
-                        <pre><code id="code-content" class="language-python"></code></pre>
-                    </div>
+                    <!-- Monaco Editor Mount -->
+                    <div id="monaco-editor" class="monaco-editor-container"></div>
                     <div id="code-empty-state" class="code-empty-state">
                         <svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                         <p>右のチャットでAIに指示して<br>コードを生成しましょう</p>
+                        <p class="shortcut-hint">Ctrl+Enter で送信 / Ctrl+H でホーム</p>
                     </div>
+                </div>
+                <!-- Terminal Panel -->
+                <div id="terminal-panel" class="terminal-panel">
+                    <div class="terminal-header">
+                        <span class="terminal-title">実行コマンド</span>
+                        <button id="terminal-close" class="btn btn-icon-sm">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                        </button>
+                    </div>
+                    <div id="terminal-content" class="terminal-content"></div>
                 </div>
                 <!-- Review Progress -->
                 <div id="review-progress" class="review-progress hidden">
                     <div class="review-steps">
-                        <div class="review-step" data-step="1">
-                            <div class="step-dot"></div>
-                            <span>コード生成</span>
-                        </div>
+                        <div class="review-step" data-step="1"><div class="step-dot"></div><span>コード生成</span></div>
                         <div class="review-step-line"></div>
-                        <div class="review-step" data-step="2">
-                            <div class="step-dot"></div>
-                            <span>バグチェック</span>
-                        </div>
+                        <div class="review-step" data-step="2"><div class="step-dot"></div><span>バグチェック</span></div>
                         <div class="review-step-line"></div>
-                        <div class="review-step" data-step="3">
-                            <div class="step-dot"></div>
-                            <span>最終確認</span>
-                        </div>
+                        <div class="review-step" data-step="3"><div class="step-dot"></div><span>最終確認</span></div>
                     </div>
-                    <div class="progress-bar">
-                        <div id="progress-fill" class="progress-fill"></div>
-                    </div>
+                    <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
                     <p id="progress-text" class="progress-text">準備中...</p>
                 </div>
             </div>
@@ -135,7 +175,23 @@
             <div class="chat-panel">
                 <div class="chat-header">
                     <h2 class="chat-title">AI チャット</h2>
-                    <span id="active-provider-badge" class="provider-badge">未設定</span>
+                    <div class="chat-header-actions">
+                        <button id="chat-search-btn" class="btn btn-icon-sm" title="チャット履歴を検索">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        </button>
+                        <button id="clear-chat-btn" class="btn btn-icon-sm" title="チャットをクリア">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+                        </button>
+                        <span id="active-provider-badge" class="provider-badge">未設定</span>
+                    </div>
+                </div>
+                <!-- Chat Search Bar -->
+                <div id="chat-search-bar" class="chat-search-bar hidden">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    <input type="text" id="chat-search-input" class="chat-search-input" placeholder="チャット履歴を検索...">
+                    <button id="chat-search-close" class="btn btn-icon-sm">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
                 </div>
                 <div id="chat-messages" class="chat-messages">
                     <div class="welcome-message">
@@ -147,7 +203,10 @@
                     </div>
                 </div>
                 <div class="chat-input-area">
-                    <textarea id="chat-input" class="chat-input" placeholder="メッセージを入力..." rows="2"></textarea>
+                    <div class="chat-input-wrap">
+                        <textarea id="chat-input" class="chat-input" placeholder="メッセージを入力... (Shift+Enter で改行)" rows="2"></textarea>
+                        <div class="chat-input-hint">Enter で送信 / Shift+Enter で改行</div>
+                    </div>
                     <button id="send-btn" class="btn btn-primary btn-send" disabled>
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
                     </button>
@@ -158,26 +217,30 @@
 
     <!-- SETTINGS MODAL -->
     <div id="settings-modal" class="modal-overlay hidden">
-        <div class="modal">
+        <div class="modal modal-lg">
             <div class="modal-header">
                 <h2>設定</h2>
                 <button id="settings-close" class="btn btn-icon">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </button>
             </div>
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="api">APIキー</button>
+                <button class="modal-tab" data-tab="ai">使用するAI</button>
+                <button class="modal-tab" data-tab="prompt">システムプロンプト</button>
+            </div>
             <div class="modal-body">
-                <section class="settings-section">
-                    <h3 class="section-title">AIプロバイダー</h3>
-                    <p class="section-desc">使用するAIサービスのAPIキーを登録してください。どのAIのAPIでも利用できます。</p>
+                <!-- API Tab -->
+                <div class="modal-tab-content active" data-tab="api">
+                    <p class="section-desc">使用するAIサービスのAPIキーを登録してください。OpenAI互換APIであれば何でも利用できます。</p>
                     <div id="api-keys-list" class="api-keys-list"></div>
                     <button id="add-api-key-btn" class="btn btn-secondary btn-add-provider">
                         <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
                         <span>プロバイダーを追加</span>
                     </button>
-                </section>
-                <hr class="divider">
-                <section class="settings-section">
-                    <h3 class="section-title">使用するAI</h3>
+                </div>
+                <!-- AI Tab -->
+                <div class="modal-tab-content" data-tab="ai">
                     <p class="section-desc">チャットで使用するプロバイダーとモデルを選択してください。</p>
                     <div class="active-ai-row">
                         <div class="form-group">
@@ -189,7 +252,25 @@
                             <input type="text" id="active-model-input" class="input" placeholder="例: llama-3.3-70b-versatile">
                         </div>
                     </div>
-                </section>
+                    <div class="provider-presets">
+                        <p class="section-desc" style="margin-bottom:8px">クイック設定</p>
+                        <div class="preset-btns">
+                            <button class="preset-btn" data-url="https://api.groq.com/openai/v1" data-model="llama-3.3-70b-versatile">Groq Llama3.3</button>
+                            <button class="preset-btn" data-url="https://api.openai.com/v1" data-model="gpt-4o">OpenAI GPT-4o</button>
+                            <button class="preset-btn" data-url="https://api.openai.com/v1" data-model="gpt-4o-mini">OpenAI GPT-4o mini</button>
+                            <button class="preset-btn" data-url="https://openrouter.ai/api/v1" data-model="meta-llama/llama-3.3-70b-instruct">OpenRouter Llama</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Prompt Tab -->
+                <div class="modal-tab-content" data-tab="prompt">
+                    <p class="section-desc">AIへの指示（システムプロンプト）をカスタマイズできます。空の場合はデフォルトを使用します。</p>
+                    <div class="form-group">
+                        <label for="custom-prompt-input">カスタムシステムプロンプト</label>
+                        <textarea id="custom-prompt-input" class="input" rows="10" placeholder="例: 常にTypeScriptで書いてください。コメントは英語で書いてください。"></textarea>
+                    </div>
+                    <button id="reset-prompt-btn" class="btn btn-ghost btn-sm">デフォルトに戻す</button>
+                </div>
             </div>
             <div class="modal-footer">
                 <button id="settings-cancel" class="btn btn-ghost">キャンセル</button>
@@ -274,7 +355,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <p id="delete-confirm-message" class="delete-message">このプロジェクトを削除しますか？この操作は元に戻せません。</p>
+                <p id="delete-confirm-message" class="delete-message">削除しますか？</p>
             </div>
             <div class="modal-footer">
                 <button id="delete-confirm-cancel" class="btn btn-ghost">キャンセル</button>
@@ -283,11 +364,14 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+    <!-- Hidden file input for import -->
+    <input type="file" id="import-file-input" accept=".json" style="display:none">
+
+    <!-- Monaco Editor loader -->
+    <script>var require = { paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } };</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.nls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

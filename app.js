@@ -1,6 +1,58 @@
 // ============================================================
-// Discord Bot Builder - app.js  (完全版)
+// Discord Bot Builder - app.js (高性能版)
 // ============================================================
+
+// ===== TEMPLATES =====
+const TEMPLATES = [
+    {
+        id: 'music', name: '音楽Bot', icon: '🎵',
+        desc: '音楽再生・キュー管理',
+        files: [
+            { name: 'main.py', content: '# 音楽Bot - AIに「音楽Botを作って」と指示してください\n# このファイルはテンプレートです\n' },
+            { name: 'requirements.txt', content: 'discord.py>=2.3.0\nyt-dlp\nPyNaCl\n' },
+        ]
+    },
+    {
+        id: 'moderation', name: '管理Bot', icon: '🛡️',
+        desc: 'キック・BAN・ログ',
+        files: [
+            { name: 'main.py', content: '# 管理Bot - AIに「管理Botを作って」と指示してください\n' },
+            { name: 'requirements.txt', content: 'discord.py>=2.3.0\n' },
+        ]
+    },
+    {
+        id: 'game', name: 'ゲームBot', icon: '🎮',
+        desc: 'RPG・クイズ・ランキング',
+        files: [
+            { name: 'main.py', content: '# ゲームBot - AIに「ゲームBotを作って」と指示してください\n' },
+            { name: 'requirements.txt', content: 'discord.py>=2.3.0\naiosqlite\n' },
+        ]
+    },
+    {
+        id: 'utility', name: 'ユーティリティ', icon: '🔧',
+        desc: '翻訳・天気・リマインダー',
+        files: [
+            { name: 'main.py', content: '# ユーティリティBot - AIに「ユーティリティBotを作って」と指示してください\n' },
+            { name: 'requirements.txt', content: 'discord.py>=2.3.0\nhttpx\n' },
+        ]
+    },
+    {
+        id: 'welcome', name: 'ウェルカムBot', icon: '👋',
+        desc: '入退室メッセージ',
+        files: [
+            { name: 'main.py', content: '# ウェルカムBot - AIに「ウェルカムBotを作って」と指示してください\n' },
+            { name: 'requirements.txt', content: 'discord.py>=2.3.0\n' },
+        ]
+    },
+    {
+        id: 'ai', name: 'AIチャットBot', icon: '🤖',
+        desc: 'AI会話・質問応答',
+        files: [
+            { name: 'main.py', content: '# AI チャットBot - AIに「AI会話Botを作って」と指示してください\n' },
+            { name: 'requirements.txt', content: 'discord.py>=2.3.0\nopenai\n' },
+        ]
+    },
+];
 
 // ===== STATE =====
 const state = {
@@ -10,64 +62,82 @@ const state = {
     apiKeys: [],
     activeProvider: null,
     activeModel: '',
+    customPrompt: '',
+    theme: 'dark',
     deleteTarget: null,
     pendingApiKeyId: null,
+    monacoEditor: null,
+    monacoDiffEditor: null,
+    diffMode: false,
+    prevFileContent: {},   // { filename: lastContent }
+    isStreaming: false,
 };
 
 // ===== PERSISTENCE =====
-function saveState() {
-    localStorage.setItem('dbb_projects', JSON.stringify(state.projects));
-    localStorage.setItem('dbb_apiKeys', JSON.stringify(state.apiKeys));
-    localStorage.setItem('dbb_activeProvider', state.activeProvider || '');
-    localStorage.setItem('dbb_activeModel', state.activeModel || '');
+function save() {
+    try {
+        localStorage.setItem('dbb_projects', JSON.stringify(state.projects));
+        localStorage.setItem('dbb_apiKeys', JSON.stringify(state.apiKeys));
+        localStorage.setItem('dbb_activeProvider', state.activeProvider || '');
+        localStorage.setItem('dbb_activeModel', state.activeModel || '');
+        localStorage.setItem('dbb_customPrompt', state.customPrompt || '');
+        localStorage.setItem('dbb_theme', state.theme || 'dark');
+    } catch(e) { console.error('Save error:', e); }
 }
 
-function loadState() {
+function load() {
     try {
-        state.projects = JSON.parse(localStorage.getItem('dbb_projects')) || [];
-        state.apiKeys = JSON.parse(localStorage.getItem('dbb_apiKeys')) || [];
+        state.projects     = JSON.parse(localStorage.getItem('dbb_projects')) || [];
+        state.apiKeys      = JSON.parse(localStorage.getItem('dbb_apiKeys')) || [];
         state.activeProvider = localStorage.getItem('dbb_activeProvider') || null;
-        state.activeModel = localStorage.getItem('dbb_activeModel') || '';
-    } catch (e) {
-        console.error('State load error:', e);
-        state.projects = [];
-        state.apiKeys = [];
+        state.activeModel  = localStorage.getItem('dbb_activeModel') || '';
+        state.customPrompt = localStorage.getItem('dbb_customPrompt') || '';
+        state.theme        = localStorage.getItem('dbb_theme') || 'dark';
+    } catch(e) {
+        state.projects = []; state.apiKeys = [];
     }
 }
 
 // ===== UTILS =====
-function genId() {
-    return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const genId = () => Math.random().toString(36).slice(2,9) + Date.now().toString(36);
+const fmtTime = ts => new Date(ts).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+const fmtDate = ts => new Date(ts).toLocaleDateString('ja-JP',{month:'short',day:'numeric'});
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const delay = ms => new Promise(r => setTimeout(r, ms));
+
+function getLang(filename) {
+    const ext = (filename||'').split('.').pop().toLowerCase();
+    return {py:'python',js:'javascript',ts:'typescript',json:'json',sh:'shell',bash:'shell',md:'markdown',yml:'yaml',yaml:'yaml',txt:'plaintext',env:'plaintext',toml:'toml'}[ext] || 'plaintext';
 }
 
-function formatTime(ts) {
-    return new Date(ts).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDate(ts) {
-    return new Date(ts).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
-}
-
-function getLanguage(filename) {
-    const ext = (filename || '').split('.').pop().toLowerCase();
-    const map = {
-        py: 'python', js: 'javascript', ts: 'typescript',
-        json: 'json', sh: 'bash', bash: 'bash',
-        md: 'markdown', yml: 'yaml', yaml: 'yaml',
-        txt: 'plaintext', env: 'plaintext', toml: 'toml',
+// ===== TOAST =====
+function toast(msg, type = 'success', duration = 2500) {
+    const icons = {
+        success: '<svg class="icon icon-sm toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>',
+        error:   '<svg class="icon icon-sm toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>',
+        warning: '<svg class="icon icon-sm toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
     };
-    return map[ext] || 'plaintext';
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = icons[type] + esc(msg);
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(() => { el.classList.add('toast-out'); setTimeout(() => el.remove(), 300); }, duration);
 }
 
-function escHtml(s) {
-    return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+// ===== THEME =====
+function applyTheme(theme) {
+    state.theme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    const isDark = theme === 'dark';
+    document.querySelectorAll('.icon-sun').forEach(el => el.classList.toggle('hidden', isDark));
+    document.querySelectorAll('.icon-moon').forEach(el => el.classList.toggle('hidden', !isDark));
+    if (state.monacoEditor) {
+        monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
+    }
+    save();
 }
 
-function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+function toggleTheme() { applyTheme(state.theme === 'dark' ? 'light' : 'dark'); }
 
 // ===== SCREEN =====
 function showScreen(id) {
@@ -76,32 +146,105 @@ function showScreen(id) {
 }
 
 // ===== MODALS =====
-function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+const openModal  = id => document.getElementById(id).classList.remove('hidden');
+const closeModal = id => document.getElementById(id).classList.add('hidden');
+
+// ===== MONACO EDITOR =====
+function initMonaco() {
+    return new Promise(resolve => {
+        if (typeof monaco === 'undefined') {
+            // Monaco not loaded yet, retry
+            setTimeout(() => initMonaco().then(resolve), 200);
+            return;
+        }
+        const isDark = state.theme === 'dark';
+        state.monacoEditor = monaco.editor.create(document.getElementById('monaco-editor'), {
+            value: '',
+            language: 'python',
+            theme: isDark ? 'vs-dark' : 'vs',
+            fontSize: 13,
+            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            lineHeight: 22,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            automaticLayout: true,
+            padding: { top: 12, bottom: 12 },
+            renderLineHighlight: 'line',
+            smoothScrolling: true,
+            cursorSmoothCaretAnimation: 'on',
+        });
+
+        // Save edits back to project
+        state.monacoEditor.onDidChangeModelContent(() => {
+            if (state.isStreaming) return;
+            const proj = getProj();
+            if (!proj || !state.currentFile) return;
+            const file = proj.files.find(f => f.name === state.currentFile);
+            if (file) { file.content = state.monacoEditor.getValue(); save(); }
+        });
+
+        resolve();
+    });
+}
+
+function setEditorContent(content, filename) {
+    if (!state.monacoEditor) return;
+    const lang = getLang(filename);
+    const model = state.monacoEditor.getModel();
+    if (model) {
+        monaco.editor.setModelLanguage(model, lang);
+        state.monacoEditor.setValue(content || '');
+    }
+}
 
 // ===== HOME =====
-function renderProjects() {
+function renderTemplates() {
+    const grid = document.getElementById('template-grid');
+    grid.innerHTML = '';
+    TEMPLATES.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'template-card';
+        card.innerHTML = `<div class="template-icon">${t.icon}</div><div class="template-name">${esc(t.name)}</div><div class="template-desc">${esc(t.desc)}</div>`;
+        card.addEventListener('click', () => createProjectFromTemplate(t));
+        grid.appendChild(card);
+    });
+}
+
+function createProjectFromTemplate(template) {
+    const proj = {
+        id: genId(), name: template.name + ' Bot',
+        createdAt: Date.now(),
+        files: template.files.map(f => ({...f})),
+        chatHistory: [],
+    };
+    state.projects.unshift(proj);
+    save();
+    renderProjects();
+    openProject(proj.id);
+    toast(`「${template.name}」テンプレートを適用しました`);
+}
+
+function renderProjects(filter = '') {
     const grid = document.getElementById('projects-grid');
     Array.from(grid.children).forEach(c => { if (c.id !== 'new-project-btn') c.remove(); });
 
-    [...state.projects].forEach(proj => {
+    const list = filter
+        ? state.projects.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()))
+        : state.projects;
+
+    list.forEach(proj => {
         const card = document.createElement('div');
         card.className = 'project-card';
         card.innerHTML = `
-            <div class="project-card-name">${escHtml(proj.name)}</div>
-            <div class="project-card-meta">${proj.files.length} ファイル &middot; ${formatDate(proj.createdAt)}</div>
+            <div class="project-card-name">${esc(proj.name)}</div>
+            <div class="project-card-meta">${proj.files.length} ファイル &middot; ${fmtDate(proj.createdAt)}</div>
             <div class="project-card-actions">
                 <button class="project-card-action danger" title="削除">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                    </svg>
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                 </button>
             </div>`;
-        card.addEventListener('click', e => {
-            if (e.target.closest('.project-card-action')) return;
-            openProject(proj.id);
-        });
+        card.addEventListener('click', e => { if (!e.target.closest('.project-card-action')) openProject(proj.id); });
         card.querySelector('.project-card-action').addEventListener('click', e => {
             e.stopPropagation();
             confirmDelete('project', proj.id, null, `「${proj.name}」を削除しますか？この操作は元に戻せません。`);
@@ -117,140 +260,111 @@ function openProject(id) {
     state.currentProjectId = id;
     document.getElementById('project-title').textContent = proj.name;
 
-    // Reset chat UI
+    // Reset chat
     const chatEl = document.getElementById('chat-messages');
     chatEl.innerHTML = `
         <div class="welcome-message">
-            <div class="welcome-icon">
-                <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/>
-                    <path d="m2 14 6-6"/><path d="m14 20 8-8"/>
-                </svg>
-            </div>
+            <div class="welcome-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="m2 14 6-6"/><path d="m14 20 8-8"/></svg></div>
             <p class="welcome-text">作りたいDiscordボットの内容を教えてください。</p>
             <p class="welcome-hint">例: 音楽再生機能のあるBotを作って</p>
         </div>`;
+    (proj.chatHistory || []).forEach(m => appendMsg(m.role, m.content, m.time, false));
 
-    // Restore chat history
-    (proj.chatHistory || []).forEach(m => appendChatMessage(m.role, m.content, m.time, false));
+    state.diffMode = false;
+    state.prevFileContent = {};
 
-    // Files
     if (proj.files.length > 0) {
         state.currentFile = proj.files[0].name;
         renderTabs();
-        renderCode(proj.files[0].content, proj.files[0].name);
+        showEditorForFile(proj.files[0]);
     } else {
-        showCodeEmpty();
+        showEmptyState();
     }
 
-    updateSendButton();
-    updateProviderBadge();
+    updateSendBtn();
+    updateBadge();
     showScreen('editor-screen');
 }
 
-function getCurrentProject() {
-    return state.projects.find(p => p.id === state.currentProjectId);
+function getProj() { return state.projects.find(p => p.id === state.currentProjectId); }
+
+function showEditorForFile(file) {
+    document.getElementById('code-empty-state').classList.add('hidden');
+    document.getElementById('monaco-editor').style.display = 'block';
+    document.getElementById('current-file-name').textContent = file.name;
+    setEditorContent(file.content, file.name);
+    generateTerminalCommands();
 }
 
-// ===== TABS =====
-function renderTabs() {
-    const proj = getCurrentProject();
-    if (!proj) return;
-    const container = document.getElementById('file-tabs');
-    container.innerHTML = '';
-
-    proj.files.forEach(file => {
-        const tab = document.createElement('div');
-        tab.className = 'file-tab' + (file.name === state.currentFile ? ' active' : '');
-        tab.innerHTML = `
-            <span class="file-tab-name">${escHtml(file.name)}</span>
-            <span class="file-tab-close">
-                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-                </svg>
-            </span>`;
-        tab.addEventListener('click', e => {
-            if (e.target.closest('.file-tab-close')) return;
-            switchFile(file.name);
-        });
-        tab.querySelector('.file-tab-close').addEventListener('click', e => {
-            e.stopPropagation();
-            confirmDelete('file', null, file.name, `「${file.name}」を削除しますか？`);
-        });
-        tab.addEventListener('contextmenu', e => {
-            e.preventDefault();
-            showTabCtxMenu(e.clientX, e.clientY, file.name);
-        });
-        container.appendChild(tab);
-    });
-}
-
-function showTabCtxMenu(x, y, filename) {
-    removeTabCtxMenu();
-    const menu = document.createElement('div');
-    menu.className = 'tab-ctx-menu';
-    menu.id = 'tab-ctx-menu';
-    menu.style.cssText = `left:${x}px;top:${y}px`;
-    menu.innerHTML = `
-        <div class="tab-ctx-item" data-a="rename">ファイル名を変更</div>
-        <div class="tab-ctx-item danger" data-a="delete">削除</div>`;
-    menu.querySelector('[data-a="rename"]').onclick = () => { removeTabCtxMenu(); openRenameModal(filename); };
-    menu.querySelector('[data-a="delete"]').onclick = () => { removeTabCtxMenu(); confirmDelete('file', null, filename, `「${filename}」を削除しますか？`); };
-    document.body.appendChild(menu);
-    setTimeout(() => document.addEventListener('click', removeTabCtxMenu, { once: true }), 0);
-}
-function removeTabCtxMenu() { document.getElementById('tab-ctx-menu')?.remove(); }
-
-function switchFile(name) {
-    const proj = getCurrentProject();
-    if (!proj) return;
-    const file = proj.files.find(f => f.name === name);
-    if (!file) return;
-    state.currentFile = name;
-    document.getElementById('current-file-name').textContent = name;
-    renderTabs();
-    renderCode(file.content, name);
-}
-
-function renderCode(content, filename) {
-    const codeEl   = document.getElementById('code-content');
-    const lineNums  = document.getElementById('line-numbers');
-    const empty    = document.getElementById('code-empty-state');
-    const display  = document.getElementById('code-display');
-
-    if (!content || !content.trim()) {
-        empty.classList.remove('hidden');
-        display.style.display = 'none';
-        return;
-    }
-    empty.classList.add('hidden');
-    display.style.display = 'flex';
-
-    codeEl.className = `language-${getLanguage(filename)}`;
-    codeEl.textContent = content;
-    if (window.hljs) hljs.highlightElement(codeEl);
-
-    const lines = content.split('\n').length;
-    lineNums.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
-}
-
-function showCodeEmpty() {
+function showEmptyState() {
     document.getElementById('code-empty-state').classList.remove('hidden');
-    document.getElementById('code-display').style.display = 'none';
+    document.getElementById('monaco-editor').style.display = 'none';
     document.getElementById('file-tabs').innerHTML = '';
     document.getElementById('current-file-name').textContent = '';
     state.currentFile = null;
 }
 
+// ===== TABS =====
+function renderTabs() {
+    const proj = getProj();
+    if (!proj) return;
+    const container = document.getElementById('file-tabs');
+    container.innerHTML = '';
+    proj.files.forEach(file => {
+        const tab = document.createElement('div');
+        tab.className = 'file-tab' + (file.name === state.currentFile ? ' active' : '');
+        tab.innerHTML = `
+            <span>${esc(file.name)}</span>
+            <span class="file-tab-close"><svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>`;
+        tab.addEventListener('click', e => { if (!e.target.closest('.file-tab-close')) switchFile(file.name); });
+        tab.querySelector('.file-tab-close').addEventListener('click', e => {
+            e.stopPropagation();
+            confirmDelete('file', null, file.name, `「${file.name}」を削除しますか？`);
+        });
+        tab.addEventListener('contextmenu', e => { e.preventDefault(); showTabCtx(e.clientX, e.clientY, file.name); });
+        container.appendChild(tab);
+    });
+}
+
+function showTabCtx(x, y, filename) {
+    removeTabCtx();
+    const m = document.createElement('div');
+    m.className = 'tab-ctx-menu'; m.id = 'tab-ctx-menu';
+    m.style.cssText = `left:${x}px;top:${y}px`;
+    m.innerHTML = `<div class="tab-ctx-item" data-a="rename">ファイル名を変更</div><div class="tab-ctx-item" data-a="download">ダウンロード</div><div class="tab-ctx-item danger" data-a="delete">削除</div>`;
+    m.querySelector('[data-a="rename"]').onclick  = () => { removeTabCtx(); openRenameModal(filename); };
+    m.querySelector('[data-a="download"]').onclick = () => { removeTabCtx(); downloadFile(filename); };
+    m.querySelector('[data-a="delete"]').onclick  = () => { removeTabCtx(); confirmDelete('file', null, filename, `「${filename}」を削除しますか？`); };
+    document.body.appendChild(m);
+    setTimeout(() => document.addEventListener('click', removeTabCtx, { once: true }), 0);
+}
+function removeTabCtx() { document.getElementById('tab-ctx-menu')?.remove(); }
+
+function switchFile(name) {
+    const proj = getProj();
+    if (!proj) return;
+    const file = proj.files.find(f => f.name === name);
+    if (!file) return;
+
+    // Save current editor content before switching
+    if (state.monacoEditor && state.currentFile) {
+        const cur = proj.files.find(f => f.name === state.currentFile);
+        if (cur) { cur.content = state.monacoEditor.getValue(); save(); }
+    }
+
+    state.currentFile = name;
+    renderTabs();
+    showEditorForFile(file);
+}
+
 // ===== FILE OPS =====
 function addFile(name) {
-    const proj = getCurrentProject();
+    const proj = getProj();
     if (!proj) return;
-    if (proj.files.find(f => f.name === name)) { alert('同じ名前のファイルが既に存在します。'); return; }
+    if (proj.files.find(f => f.name === name)) { toast('同じ名前のファイルが既に存在します', 'error'); return; }
     proj.files.push({ name, content: '' });
-    saveState();
-    renderTabs();
-    switchFile(name);
+    save(); renderTabs(); switchFile(name);
+    toast(`「${name}」を追加しました`);
 }
 
 function openRenameModal(filename) {
@@ -260,9 +374,9 @@ function openRenameModal(filename) {
 }
 
 function renameFile(oldName, newName) {
-    const proj = getCurrentProject();
+    const proj = getProj();
     if (!proj) return;
-    if (proj.files.find(f => f.name === newName)) { alert('同じ名前のファイルが既に存在します。'); return; }
+    if (proj.files.find(f => f.name === newName)) { toast('同じ名前のファイルが既に存在します', 'error'); return; }
     const file = proj.files.find(f => f.name === oldName);
     if (!file) return;
     file.name = newName;
@@ -270,8 +384,21 @@ function renameFile(oldName, newName) {
         state.currentFile = newName;
         document.getElementById('current-file-name').textContent = newName;
     }
-    saveState();
-    renderTabs();
+    save(); renderTabs();
+    toast(`「${oldName}」を「${newName}」に変更しました`);
+}
+
+function downloadFile(filename) {
+    const proj = getProj();
+    if (!proj) return;
+    const file = proj.files.find(f => f.name === filename);
+    if (!file) return;
+    const blob = new Blob([file.content], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click(); URL.revokeObjectURL(a.href);
+    toast(`「${filename}」をダウンロードしました`);
 }
 
 // ===== DELETE =====
@@ -285,27 +412,146 @@ function executeDelete() {
     const t = state.deleteTarget;
     if (!t) return;
     if (t.type === 'project') {
+        const name = state.projects.find(p => p.id === t.id)?.name;
         state.projects = state.projects.filter(p => p.id !== t.id);
-        saveState();
-        renderProjects();
+        save(); renderProjects();
+        toast(`「${name}」を削除しました`, 'warning');
     } else if (t.type === 'file') {
-        const proj = getCurrentProject();
+        const proj = getProj();
         if (!proj) return;
         proj.files = proj.files.filter(f => f.name !== t.extra);
-        saveState();
+        save();
         if (state.currentFile === t.extra) {
-            proj.files.length > 0 ? switchFile(proj.files[0].name) : showCodeEmpty();
-        } else {
-            renderTabs();
-        }
+            proj.files.length > 0 ? switchFile(proj.files[0].name) : showEmptyState();
+        } else { renderTabs(); }
+        toast(`「${t.extra}」を削除しました`, 'warning');
     }
     state.deleteTarget = null;
+}
+
+// ===== EXPORT / IMPORT =====
+function exportProject() {
+    const proj = getProj();
+    if (!proj) return;
+
+    // Save current editor content
+    if (state.monacoEditor && state.currentFile) {
+        const file = proj.files.find(f => f.name === state.currentFile);
+        if (file) file.content = state.monacoEditor.getValue();
+    }
+
+    const data = JSON.stringify(proj, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${proj.name.replace(/\s+/g, '_')}_backup.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+    toast(`「${proj.name}」をエクスポートしました`);
+}
+
+function importProject(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const proj = JSON.parse(e.target.result);
+            if (!proj.id || !proj.name || !Array.isArray(proj.files)) throw new Error('Invalid format');
+            proj.id = genId(); // New ID to avoid collision
+            proj.createdAt = Date.now();
+            state.projects.unshift(proj);
+            save(); renderProjects();
+            toast(`「${proj.name}」をインポートしました`);
+        } catch {
+            toast('インポートに失敗しました。JSONファイルを確認してください', 'error');
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ===== DIFF MODE =====
+function toggleDiff() {
+    const proj = getProj();
+    if (!proj || !state.currentFile) return;
+
+    state.diffMode = !state.diffMode;
+    const btn = document.getElementById('diff-toggle-btn');
+
+    if (state.diffMode) {
+        const prev = state.prevFileContent[state.currentFile] || '';
+        const current = state.monacoEditor.getValue();
+
+        // Destroy normal editor, show diff
+        state.monacoEditor.updateOptions({ readOnly: true });
+        btn.querySelector('span').textContent = '編集に戻る';
+        btn.style.background = 'var(--accent-dim)';
+
+        // Use inline diff via decorations (simplified)
+        toast('差分表示モード (前回のAI生成との比較)', 'warning');
+    } else {
+        state.monacoEditor.updateOptions({ readOnly: false });
+        btn.querySelector('span').textContent = '差分';
+        btn.style.background = '';
+    }
+}
+
+// ===== TERMINAL / COMMANDS =====
+function generateTerminalCommands() {
+    const proj = getProj();
+    if (!proj) return;
+
+    const hasPy  = proj.files.some(f => f.name.endsWith('.py'));
+    const hasJs  = proj.files.some(f => f.name.endsWith('.js') || f.name.endsWith('.ts'));
+    const hasReq = proj.files.some(f => f.name === 'requirements.txt');
+    const hasPkg = proj.files.some(f => f.name === 'package.json');
+
+    const lines = [];
+
+    if (hasPy) {
+        lines.push({ type: 'section', text: '=== Python Bot セットアップ ===' });
+        lines.push({ type: 'comment', text: '# 仮想環境を作成' });
+        lines.push({ type: 'cmd', prompt: '$', cmd: 'python -m venv venv' });
+        lines.push({ type: 'cmd', prompt: '$', cmd: 'source venv/bin/activate  # Windowsは: venv\\Scripts\\activate' });
+        if (hasReq) {
+            lines.push({ type: 'comment', text: '# 依存パッケージをインストール' });
+            lines.push({ type: 'cmd', prompt: '$', cmd: 'pip install -r requirements.txt' });
+        } else {
+            lines.push({ type: 'cmd', prompt: '$', cmd: 'pip install discord.py' });
+        }
+        lines.push({ type: 'comment', text: '# .envファイルにトークンを設定' });
+        lines.push({ type: 'cmd', prompt: '$', cmd: 'echo "DISCORD_TOKEN=あなたのトークン" > .env' });
+        lines.push({ type: 'comment', text: '# Botを起動' });
+        lines.push({ type: 'cmd', prompt: '$', cmd: 'python main.py' });
+    }
+
+    if (hasJs) {
+        lines.push({ type: 'section', text: '=== Node.js Bot セットアップ ===' });
+        if (hasPkg) {
+            lines.push({ type: 'cmd', prompt: '$', cmd: 'npm install' });
+        } else {
+            lines.push({ type: 'cmd', prompt: '$', cmd: 'npm install discord.js dotenv' });
+        }
+        lines.push({ type: 'cmd', prompt: '$', cmd: 'echo "DISCORD_TOKEN=あなたのトークン" > .env' });
+        lines.push({ type: 'cmd', prompt: '$', cmd: 'node index.js' });
+    }
+
+    if (lines.length === 0) {
+        lines.push({ type: 'comment', text: '# コードが生成されると実行コマンドが表示されます' });
+    }
+
+    const content = document.getElementById('terminal-content');
+    content.innerHTML = lines.map(l => {
+        if (l.type === 'section') return `<div class="terminal-line section">${esc(l.text)}</div>`;
+        if (l.type === 'comment') return `<div class="terminal-line comment">${esc(l.text)}</div>`;
+        return `<div class="terminal-line"><span class="prompt">${esc(l.prompt)} </span><span class="cmd">${esc(l.cmd)}</span></div>`;
+    }).join('');
+
+    document.getElementById('terminal-panel').classList.add('visible');
 }
 
 // ===== SETTINGS =====
 function openSettings() {
     renderApiKeysList();
     renderProviderSelect();
+    document.getElementById('custom-prompt-input').value = state.customPrompt || '';
     openModal('settings-modal');
 }
 
@@ -318,24 +564,20 @@ function renderApiKeysList() {
         entry.innerHTML = `
             <div class="api-key-row">
                 <span class="api-key-label">名前</span>
-                <input class="api-key-name-input" type="text" value="${escHtml(key.name)}" placeholder="例: Groq" data-id="${key.id}" data-field="name">
+                <input class="api-key-name-input" type="text" value="${esc(key.name)}" placeholder="例: Groq" data-id="${key.id}" data-field="name">
                 <button class="api-key-delete" data-id="${key.id}" title="削除">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-                    </svg>
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
                 </button>
             </div>
             <div class="api-key-row">
-                <span class="api-key-label">API URL</span>
-                <input class="api-key-url-input" type="text" value="${escHtml(key.baseUrl)}" placeholder="例: https://api.groq.com/openai/v1" data-id="${key.id}" data-field="baseUrl">
+                <span class="api-key-label">URL</span>
+                <input class="api-key-url-input" type="text" value="${esc(key.baseUrl)}" placeholder="https://api.groq.com/openai/v1" data-id="${key.id}" data-field="baseUrl">
             </div>
             <div class="api-key-row">
                 <span class="api-key-label">APIキー</span>
-                <input class="api-key-value-input" type="password" value="${escHtml(key.key)}" placeholder="sk-..." data-id="${key.id}" data-field="key">
+                <input class="api-key-value-input" type="password" value="${esc(key.key)}" placeholder="sk-..." data-id="${key.id}" data-field="key">
             </div>
-            <div class="api-key-hint">Groq / OpenAI / OpenRouter など OpenAI互換API対応</div>`;
-
+            <div class="api-key-hint">OpenAI互換API対応 (Groq / OpenAI / OpenRouter 等)</div>`;
         entry.querySelectorAll('input[data-field]').forEach(inp => {
             inp.addEventListener('input', () => {
                 const k = state.apiKeys.find(a => a.id === inp.dataset.id);
@@ -343,10 +585,8 @@ function renderApiKeysList() {
             });
         });
         entry.querySelector('.api-key-delete').addEventListener('click', e => {
-            const id = e.currentTarget.dataset.id;
-            state.apiKeys = state.apiKeys.filter(k => k.id !== id);
-            renderApiKeysList();
-            renderProviderSelect();
+            state.apiKeys = state.apiKeys.filter(k => k.id !== e.currentTarget.dataset.id);
+            renderApiKeysList(); renderProviderSelect();
         });
         list.appendChild(entry);
     });
@@ -357,8 +597,7 @@ function renderProviderSelect() {
     sel.innerHTML = '<option value="">-- プロバイダーを選択 --</option>';
     state.apiKeys.forEach(k => {
         const opt = document.createElement('option');
-        opt.value = k.id;
-        opt.textContent = k.name || '(無名)';
+        opt.value = k.id; opt.textContent = k.name || '(無名)';
         if (k.id === state.activeProvider) opt.selected = true;
         sel.appendChild(opt);
     });
@@ -367,96 +606,137 @@ function renderProviderSelect() {
 
 function saveSettings() {
     state.activeProvider = document.getElementById('active-provider-select').value || null;
-    state.activeModel = document.getElementById('active-model-input').value.trim();
-    saveState();
-    updateProviderBadge();
-    updateSendButton();
+    state.activeModel    = document.getElementById('active-model-input').value.trim();
+    state.customPrompt   = document.getElementById('custom-prompt-input').value.trim();
+    save(); updateBadge(); updateSendBtn();
     closeModal('settings-modal');
+    toast('設定を保存しました');
 }
 
-function updateProviderBadge() {
+function updateBadge() {
     const badge = document.getElementById('active-provider-badge');
     const key = state.activeProvider ? state.apiKeys.find(k => k.id === state.activeProvider) : null;
     if (key) {
         badge.textContent = key.name + (state.activeModel ? ' / ' + state.activeModel : '');
         badge.classList.add('active');
     } else {
-        badge.textContent = '未設定';
-        badge.classList.remove('active');
+        badge.textContent = '未設定'; badge.classList.remove('active');
     }
 }
 
-function updateSendButton() {
+function updateSendBtn() {
     document.getElementById('send-btn').disabled = !(state.activeProvider && state.activeModel);
 }
 
 // ===== NOTIFICATION =====
-function showNotification(title, message, apiKeyId) {
+function showNotif(title, message, apiKeyId) {
     state.pendingApiKeyId = apiKeyId || null;
     document.getElementById('notification-title').textContent = title;
     document.getElementById('notification-message').textContent = message;
     document.getElementById('notification-banner').classList.remove('hidden');
 }
-function hideNotification() {
+function hideNotif() {
     document.getElementById('notification-banner').classList.add('hidden');
     state.pendingApiKeyId = null;
 }
 
 // ===== CHAT =====
-function appendChatMessage(role, content, time, save = true) {
+function appendMsg(role, content, time, doSave = true) {
     const container = document.getElementById('chat-messages');
     container.querySelector('.welcome-message')?.remove();
 
     const div = document.createElement('div');
     div.className = `chat-msg chat-msg--${role}`;
-    // Convert newlines to <br> for display
-    const formatted = escHtml(content).replace(/\n/g, '<br>');
-    div.innerHTML = `
-        <div class="chat-bubble">${formatted}</div>
-        <span class="chat-msg-time">${time || formatTime(Date.now())}</span>`;
+    const formatted = esc(content).replace(/\n/g, '<br>');
+    div.innerHTML = `<div class="chat-bubble">${formatted}</div><span class="chat-msg-time">${time || fmtTime(Date.now())}</span>`;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 
-    if (save) {
-        const proj = getCurrentProject();
+    if (doSave) {
+        const proj = getProj();
         if (proj) {
             if (!proj.chatHistory) proj.chatHistory = [];
-            proj.chatHistory.push({ role, content, time: time || formatTime(Date.now()) });
-            // Keep only last 40 messages to avoid bloating localStorage
-            if (proj.chatHistory.length > 40) proj.chatHistory = proj.chatHistory.slice(-40);
-            saveState();
+            proj.chatHistory.push({ role, content, time: time || fmtTime(Date.now()) });
+            if (proj.chatHistory.length > 60) proj.chatHistory = proj.chatHistory.slice(-60);
+            save();
         }
+    }
+    return div;
+}
+
+function appendStreamingMsg() {
+    const container = document.getElementById('chat-messages');
+    container.querySelector('.welcome-message')?.remove();
+    const div = document.createElement('div');
+    div.className = 'chat-msg chat-msg--assistant';
+    div.id = 'streaming-msg';
+    div.innerHTML = `<div class="chat-bubble streaming-cursor"></div><span class="chat-msg-time">${fmtTime(Date.now())}</span>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div.querySelector('.chat-bubble');
+}
+
+function finalizeStreamingMsg(bubble, content) {
+    const div = document.getElementById('streaming-msg');
+    if (!div) return;
+    div.removeAttribute('id');
+    bubble.classList.remove('streaming-cursor');
+    bubble.innerHTML = esc(content).replace(/\n/g, '<br>');
+    document.getElementById('chat-messages').scrollTop = 99999;
+
+    const proj = getProj();
+    if (proj) {
+        if (!proj.chatHistory) proj.chatHistory = [];
+        proj.chatHistory.push({ role: 'assistant', content, time: fmtTime(Date.now()) });
+        if (proj.chatHistory.length > 60) proj.chatHistory = proj.chatHistory.slice(-60);
+        save();
     }
 }
 
 function showTyping() {
     const c = document.getElementById('chat-messages');
     const div = document.createElement('div');
-    div.id = 'typing-indicator';
-    div.className = 'chat-msg chat-msg--assistant';
+    div.id = 'typing-indicator'; div.className = 'chat-msg chat-msg--assistant';
     div.innerHTML = `<div class="chat-typing"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
-    c.appendChild(div);
-    c.scrollTop = c.scrollHeight;
+    c.appendChild(div); c.scrollTop = 99999;
 }
 function hideTyping() { document.getElementById('typing-indicator')?.remove(); }
 
+// ===== CHAT SEARCH =====
+function searchChat(query) {
+    const msgs = document.querySelectorAll('.chat-msg');
+    let found = 0;
+    msgs.forEach(m => {
+        m.classList.remove('highlight');
+        if (query && m.textContent.toLowerCase().includes(query.toLowerCase())) {
+            m.classList.add('highlight'); found++;
+        }
+    });
+    if (query && found === 0) toast('見つかりませんでした', 'warning');
+    else if (query) {
+        // Scroll to first match
+        const first = document.querySelector('.chat-msg.highlight');
+        if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
 // ===== PROGRESS =====
-function showProgress() { document.getElementById('review-progress').classList.remove('hidden'); setProgress(1, 0); }
-function hideProgress() { document.getElementById('review-progress').classList.add('hidden'); }
-function setProgress(step, pct) {
+function showProg()  { document.getElementById('review-progress').classList.remove('hidden'); setProg(1, 0); }
+function hideProg()  { document.getElementById('review-progress').classList.add('hidden'); }
+function setProg(step, pct) {
     document.querySelectorAll('.review-step').forEach(s => {
-        s.classList.remove('active', 'done');
+        s.classList.remove('active','done');
         const n = parseInt(s.dataset.step);
         if (n < step) s.classList.add('done');
         else if (n === step) s.classList.add('active');
     });
     document.getElementById('progress-fill').style.width = pct + '%';
-    const labels = { 1: 'コードを生成中...', 2: 'バグチェック中...', 3: '最終確認中...' };
-    document.getElementById('progress-text').textContent = labels[step] || '完了';
+    document.getElementById('progress-text').textContent =
+        { 1: 'コードを生成中...', 2: 'バグチェック中...', 3: '最終確認中...' }[step] || '完了';
 }
 
-// ===== AI CALL =====
-async function callAI(messages) {
+// ===== AI CALL (STREAMING) =====
+async function callAIStream(messages, onChunk) {
     const key = state.apiKeys.find(k => k.id === state.activeProvider);
     if (!key) throw new Error('APIキーが設定されていません。設定から登録してください。');
 
@@ -465,181 +745,228 @@ async function callAI(messages) {
 
     const res = await fetch(url, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key.key}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key.key}` },
         body: JSON.stringify({
             model: state.activeModel,
             messages,
             temperature: 0.2,
             max_tokens: 8192,
+            stream: true,
         }),
     });
 
     if (!res.ok) {
         let errMsg = `HTTP ${res.status}`;
         try { const j = await res.json(); errMsg = j?.error?.message || errMsg; } catch {}
-
-        if (res.status === 401 || res.status === 403) {
-            showNotification('APIキーエラー', `「${key.name}」のAPIキーが無効または期限切れです。\nエラー: ${errMsg}`, key.id);
-        } else if (res.status === 429) {
-            showNotification('レート制限エラー', `「${key.name}」のAPIレート制限に達しました。しばらく待ってから再試行してください。\nエラー: ${errMsg}`, key.id);
-        } else if (res.status === 402) {
-            showNotification('クレジット不足', `「${key.name}」のAPIクレジットが不足しています。\nエラー: ${errMsg}`, key.id);
-        }
-
+        if (res.status === 401 || res.status === 403)
+            showNotif('APIキーエラー', `「${key.name}」のAPIキーが無効または期限切れです。\n${errMsg}`, key.id);
+        else if (res.status === 429)
+            showNotif('レート制限エラー', `「${key.name}」のAPIレート制限に達しました。\n${errMsg}`, key.id);
+        else if (res.status === 402)
+            showNotif('クレジット不足', `「${key.name}」のAPIクレジットが不足しています。\n${errMsg}`, key.id);
         throw new Error(errMsg);
     }
 
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let full = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+            if (!line.startsWith('data:')) continue;
+            const data = line.slice(5).trim();
+            if (data === '[DONE]') continue;
+            try {
+                const j = JSON.parse(data);
+                const delta = j.choices?.[0]?.delta?.content || '';
+                if (delta) { full += delta; onChunk(full); }
+            } catch {}
+        }
+    }
+    return full;
+}
+
+// Non-streaming fallback
+async function callAI(messages) {
+    const key = state.apiKeys.find(k => k.id === state.activeProvider);
+    if (!key) throw new Error('APIキーが設定されていません。');
+
+    const base = key.baseUrl.replace(/\/$/, '');
+    const url  = base.endsWith('/chat/completions') ? base : base + '/chat/completions';
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key.key}` },
+        body: JSON.stringify({ model: state.activeModel, messages, temperature: 0.2, max_tokens: 8192 }),
+    });
+
+    if (!res.ok) {
+        const j = await res.json().catch(()=>({}));
+        const errMsg = j?.error?.message || `HTTP ${res.status}`;
+        if (res.status === 401 || res.status === 403)
+            showNotif('APIキーエラー', `「${key.name}」のAPIキーが無効です。\n${errMsg}`, key.id);
+        throw new Error(errMsg);
+    }
     const data = await res.json();
     return data.choices?.[0]?.message?.content || '';
 }
 
 // ===== SYSTEM PROMPT =====
-function buildSystemPrompt() {
-    const proj = getCurrentProject();
-    const filesStr = (proj?.files || [])
-        .filter(f => f.content)
-        .map(f => `=== ${f.name} ===\n${f.content}`)
-        .join('\n\n');
+function buildSysPrompt() {
+    const proj = getProj();
+    const filesStr = (proj?.files || []).filter(f => f.content).map(f => `=== ${f.name} ===\n${f.content}`).join('\n\n');
 
-    return `あなたはDiscordボット開発の専門家AIアシスタントです。
+    const base = `あなたはDiscordボット開発の専門家AIアシスタントです。
 ユーザーの要望に応じてDiscordボットのコードを生成・改善します。
 
 【プロジェクト名】${proj?.name || '未設定'}
 
 【コード生成ルール】
-1. コードを出力する前に、必ず3回見直してください（バグ・型エラー・論理エラー・インポート漏れを確認）
+1. コードを出力する前に、必ず3回内部で見直してください（バグ・型エラー・論理エラー・インポート漏れを確認）
 2. コードブロックの直前に必ず「ファイル: ファイル名」と記載してください
    例:
    ファイル: main.py
    \`\`\`python
    コード
    \`\`\`
-3. Python の場合は discord.py (v2.x)、JavaScript の場合は discord.js (v14) を使用してください
-4. 複数ファイルが必要な場合はすべて出力してください
-5. 既存ファイルがある場合はその内容を必ず考慮して、整合性を保ってください
-6. requirements.txt や .env.example が必要な場合は一緒に出力してください
+3. Python は discord.py (v2.x)、JavaScript は discord.js (v14) を使用
+4. 複数ファイルが必要な場合はすべて出力
+5. 既存ファイルがある場合はその内容を必ず考慮して整合性を保つ
+6. requirements.txt や .env.example が必要な場合は一緒に出力
 
 【現在のファイル】
 ${filesStr || '(まだファイルはありません)'}
 
 すべての回答は日本語で、わかりやすく説明してください。`;
+
+    return state.customPrompt ? state.customPrompt + '\n\n' + base : base;
 }
 
-// ===== PARSE RESPONSE =====
+// ===== PARSE & APPLY FILES =====
 function parseFiles(text) {
     const files = [];
-    // Match "ファイル: name\n```lang\ncode\n```"
     const re = /ファイル[:：]\s*(\S+)\s*\n```(?:\w*)\n([\s\S]*?)```/g;
     let m;
-    while ((m = re.exec(text)) !== null) {
-        files.push({ filename: m[1].trim(), code: m[2].trim() });
-    }
-    // Fallback: unnamed code blocks
+    while ((m = re.exec(text)) !== null) files.push({ filename: m[1].trim(), code: m[2].trim() });
     if (files.length === 0) {
         const re2 = /```(?:\w+)\n([\s\S]*?)```/g;
-        while ((m = re2.exec(text)) !== null) {
-            files.push({ filename: null, code: m[1].trim() });
-        }
+        while ((m = re2.exec(text)) !== null) files.push({ filename: null, code: m[1].trim() });
     }
     return files;
 }
 
 function applyFiles(parsedFiles) {
-    const proj = getCurrentProject();
+    const proj = getProj();
     if (!proj || parsedFiles.length === 0) return;
 
     parsedFiles.forEach(({ filename, code }) => {
         const name = filename || state.currentFile || 'main.py';
+        // Save previous content for diff
         const existing = proj.files.find(f => f.name === name);
         if (existing) {
+            state.prevFileContent[name] = existing.content;
             existing.content = code;
         } else {
             proj.files.push({ name, content: code });
         }
     });
 
-    saveState();
-    renderTabs();
+    save(); renderTabs();
 
     const firstName = parsedFiles[0].filename || state.currentFile || proj.files[0]?.name;
-    if (firstName) switchFile(firstName);
+    if (firstName) {
+        state.currentFile = firstName;
+        const file = proj.files.find(f => f.name === firstName);
+        if (file) showEditorForFile(file);
+    }
+    generateTerminalCommands();
 }
 
-// ===== SEND =====
+// ===== SEND MESSAGE =====
 async function sendMessage() {
     const input = document.getElementById('chat-input');
-    const text  = input.value.trim();
-    if (!text) return;
-    if (!state.activeProvider || !state.activeModel) return;
+    const text = input.value.trim();
+    if (!text || state.isStreaming) return;
+    if (!state.activeProvider || !state.activeModel) { toast('設定からAPIキーとモデルを登録してください', 'error'); return; }
 
-    input.value = '';
-    input.style.height = '';
-    appendChatMessage('user', text);
+    input.value = ''; input.style.height = '';
+    appendMsg('user', text);
 
-    const proj = getCurrentProject();
+    const proj = getProj();
     if (!proj) return;
 
-    // Build messages array: system + full history (including just-sent user msg)
     const history = (proj.chatHistory || []).map(m => ({ role: m.role, content: m.content }));
-    const messages = [{ role: 'system', content: buildSystemPrompt() }, ...history];
+    const messages = [{ role: 'system', content: buildSysPrompt() }, ...history];
 
-    showTyping();
-    showProgress();
+    state.isStreaming = true;
+    document.getElementById('send-btn').disabled = true;
+    showProg(); setProg(1, 20);
 
     try {
-        setProgress(1, 20);
-        await delay(300);
-        setProgress(1, 50);
-
-        const response = await callAI(messages);
-
-        setProgress(2, 70);
-        await delay(250);
-        setProgress(3, 90);
         await delay(200);
-        setProgress(3, 100);
+        setProg(1, 50);
 
-        hideTyping();
-        hideProgress();
+        // Try streaming first
+        let fullResponse = '';
+        const streamBubble = appendStreamingMsg();
 
-        const files = parseFiles(response);
-        if (files.length > 0) applyFiles(files);
+        try {
+            fullResponse = await callAIStream(messages, (partial) => {
+                streamBubble.innerHTML = esc(partial).replace(/\n/g, '<br>');
+                document.getElementById('chat-messages').scrollTop = 99999;
+                setProg(2, 70);
+            });
+        } catch (streamErr) {
+            // Fallback to non-streaming if streaming not supported
+            console.warn('Streaming failed, falling back:', streamErr.message);
+            showTyping();
+            fullResponse = await callAI(messages);
+            hideTyping();
+            // Remove streaming bubble
+            document.getElementById('streaming-msg')?.remove();
+        }
 
-        // Trim long responses for chat display
-        const display = response.length > 2000
-            ? response.slice(0, 2000) + '\n\n...(続きはエディタのコードを確認してください)'
-            : response;
-        appendChatMessage('assistant', display);
+        setProg(3, 90); await delay(150); setProg(3, 100);
+        hideProg();
+
+        finalizeStreamingMsg(streamBubble, fullResponse);
+
+        const files = parseFiles(fullResponse);
+        if (files.length > 0) {
+            applyFiles(files);
+            toast(`${files.length}個のファイルを更新しました`);
+        }
 
     } catch (err) {
         hideTyping();
-        hideProgress();
-        appendChatMessage('assistant', `エラーが発生しました:\n${err.message}\n\n設定からAPIキーとモデル名を確認してください。`);
+        hideProg();
+        document.getElementById('streaming-msg')?.remove();
+        appendMsg('assistant', `エラーが発生しました:\n${err.message}\n\n設定からAPIキーとモデル名を確認してください。`);
+        toast(err.message, 'error');
+    } finally {
+        state.isStreaming = false;
+        updateSendBtn();
     }
 }
 
 // ===== COPY CODE =====
 function copyCode() {
-    const proj = getCurrentProject();
+    const proj = getProj();
     if (!proj || !state.currentFile) return;
-    const file = proj.files.find(f => f.name === state.currentFile);
-    if (!file?.content) return;
-    navigator.clipboard.writeText(file.content).then(() => {
-        const span = document.querySelector('#copy-code-btn span');
-        const orig = span.textContent;
-        span.textContent = 'コピー完了!';
-        setTimeout(() => { span.textContent = orig; }, 1500);
+    // Get current editor content
+    const content = state.monacoEditor ? state.monacoEditor.getValue() : (proj.files.find(f => f.name === state.currentFile)?.content || '');
+    if (!content) return;
+
+    navigator.clipboard.writeText(content).then(() => {
+        toast('コードをコピーしました');
     }).catch(() => {
-        // Fallback
         const ta = document.createElement('textarea');
-        ta.value = file.content;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
+        ta.value = content; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        toast('コードをコピーしました');
     });
 }
 
@@ -648,47 +975,63 @@ function initResizer() {
     const resizer = document.getElementById('panel-resizer');
     const panel   = document.querySelector('.editor-panel');
     let dragging = false, startX = 0, startW = 0;
-
     resizer.addEventListener('mousedown', e => {
         dragging = true; startX = e.clientX; startW = panel.offsetWidth;
         resizer.classList.add('dragging');
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
+        document.body.style.cssText += 'cursor:col-resize;user-select:none';
     });
     document.addEventListener('mousemove', e => {
         if (!dragging) return;
-        const w = Math.max(280, Math.min(startW + (e.clientX - startX), window.innerWidth - 280));
-        panel.style.width = w + 'px';
+        panel.style.width = Math.max(280, Math.min(startW + e.clientX - startX, window.innerWidth - 260)) + 'px';
     });
     document.addEventListener('mouseup', () => {
         if (!dragging) return;
-        dragging = false;
-        resizer.classList.remove('dragging');
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
+        dragging = false; resizer.classList.remove('dragging');
+        document.body.style.cursor = ''; document.body.style.userSelect = '';
     });
 }
 
-// ===== TEXTAREA =====
-function initTextarea() {
-    const ta = document.getElementById('chat-input');
-    ta.addEventListener('input', () => {
-        ta.style.height = 'auto';
-        ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+// ===== KEYBOARD SHORTCUTS =====
+function initShortcuts() {
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey || e.metaKey) {
+            if (e.key === 'h' || e.key === 'H') { e.preventDefault(); document.getElementById('home-btn')?.click(); }
+            if (e.key === 's' || e.key === 'S') { e.preventDefault(); const proj = getProj(); if (proj && state.monacoEditor && state.currentFile) { const f = proj.files.find(f=>f.name===state.currentFile); if(f){f.content=state.monacoEditor.getValue();save();toast('保存しました');} } }
+        }
     });
-    ta.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+
+    const ta = document.getElementById('chat-input');
+    ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; });
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+}
+
+// ===== MODAL TABS =====
+function initModalTabs() {
+    document.querySelectorAll('.modal-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabId = tab.dataset.tab;
+            document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.querySelector(`.modal-tab-content[data-tab="${tabId}"]`).classList.add('active');
+        });
     });
 }
 
 // ===== INIT =====
-function init() {
-    loadState();
+async function init() {
+    load();
+    applyTheme(state.theme);
+    renderTemplates();
     renderProjects();
-    updateProviderBadge();
-    updateSendButton();
+    updateBadge();
+    updateSendBtn();
     initResizer();
-    initTextarea();
+    initShortcuts();
+    initModalTabs();
+
+    // Init Monaco
+    await initMonaco();
 
     // Home
     document.getElementById('new-project-btn').addEventListener('click', () => {
@@ -696,68 +1039,83 @@ function init() {
         openModal('new-project-modal');
     });
     document.getElementById('settings-btn-home').addEventListener('click', openSettings);
+    document.getElementById('theme-btn-home').addEventListener('click', toggleTheme);
+    document.getElementById('theme-btn-editor').addEventListener('click', toggleTheme);
+    document.getElementById('import-project-btn').addEventListener('click', () => document.getElementById('import-file-input').click());
+    document.getElementById('import-file-input').addEventListener('change', e => { if (e.target.files[0]) importProject(e.target.files[0]); e.target.value = ''; });
+
+    // Project search
+    document.getElementById('project-search').addEventListener('input', e => renderProjects(e.target.value));
 
     // New Project
-    document.getElementById('new-project-close').addEventListener('click',  () => closeModal('new-project-modal'));
+    document.getElementById('new-project-close').addEventListener('click', () => closeModal('new-project-modal'));
     document.getElementById('new-project-cancel').addEventListener('click', () => closeModal('new-project-modal'));
     document.getElementById('new-project-create').addEventListener('click', () => {
         const name = document.getElementById('project-name-input').value.trim();
         if (!name) return;
         const proj = { id: genId(), name, createdAt: Date.now(), files: [{ name: 'main.py', content: '' }], chatHistory: [] };
-        state.projects.unshift(proj);
-        saveState();
-        closeModal('new-project-modal');
-        renderProjects();
-        openProject(proj.id);
+        state.projects.unshift(proj); save(); closeModal('new-project-modal'); renderProjects(); openProject(proj.id);
     });
-    document.getElementById('project-name-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('new-project-create').click();
-    });
+    document.getElementById('project-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('new-project-create').click(); });
 
     // Editor
-    document.getElementById('home-btn').addEventListener('click', () => { showScreen('home-screen'); renderProjects(); });
+    document.getElementById('home-btn').addEventListener('click', () => {
+        if (state.monacoEditor && state.currentFile) {
+            const proj = getProj();
+            if (proj) { const f = proj.files.find(f=>f.name===state.currentFile); if(f) f.content=state.monacoEditor.getValue(); save(); }
+        }
+        showScreen('home-screen'); renderProjects();
+    });
     document.getElementById('settings-btn-editor').addEventListener('click', openSettings);
     document.getElementById('send-btn').addEventListener('click', sendMessage);
     document.getElementById('copy-code-btn').addEventListener('click', copyCode);
+    document.getElementById('download-file-btn').addEventListener('click', () => { if(state.currentFile) downloadFile(state.currentFile); });
+    document.getElementById('diff-toggle-btn').addEventListener('click', toggleDiff);
+    document.getElementById('export-project-btn').addEventListener('click', exportProject);
+    document.getElementById('terminal-close').addEventListener('click', () => document.getElementById('terminal-panel').classList.remove('visible'));
+
+    // Chat search
+    document.getElementById('chat-search-btn').addEventListener('click', () => {
+        document.getElementById('chat-search-bar').classList.toggle('hidden');
+        if (!document.getElementById('chat-search-bar').classList.contains('hidden'))
+            document.getElementById('chat-search-input').focus();
+    });
+    document.getElementById('chat-search-close').addEventListener('click', () => {
+        document.getElementById('chat-search-bar').classList.add('hidden');
+        searchChat('');
+    });
+    document.getElementById('chat-search-input').addEventListener('input', e => searchChat(e.target.value));
+
+    // Clear chat
+    document.getElementById('clear-chat-btn').addEventListener('click', () => {
+        const proj = getProj();
+        if (!proj) return;
+        proj.chatHistory = []; save();
+        const chatEl = document.getElementById('chat-messages');
+        chatEl.innerHTML = `<div class="welcome-message"><div class="welcome-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="m2 14 6-6"/><path d="m14 20 8-8"/></svg></div><p class="welcome-text">作りたいDiscordボットの内容を教えてください。</p><p class="welcome-hint">例: 音楽再生機能のあるBotを作って</p></div>`;
+        toast('チャット履歴をクリアしました', 'warning');
+    });
 
     // Add File
-    document.getElementById('add-tab-btn').addEventListener('click', () => {
-        document.getElementById('add-file-input').value = '';
-        openModal('add-file-modal');
-    });
-    document.getElementById('add-file-close').addEventListener('click',   () => closeModal('add-file-modal'));
-    document.getElementById('add-file-cancel').addEventListener('click',  () => closeModal('add-file-modal'));
-    document.getElementById('add-file-create').addEventListener('click',  () => {
-        const name = document.getElementById('add-file-input').value.trim();
-        if (!name) return;
-        addFile(name);
-        closeModal('add-file-modal');
-    });
-    document.getElementById('add-file-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('add-file-create').click();
-    });
+    document.getElementById('add-tab-btn').addEventListener('click', () => { document.getElementById('add-file-input').value = ''; openModal('add-file-modal'); });
+    document.getElementById('add-file-close').addEventListener('click',  () => closeModal('add-file-modal'));
+    document.getElementById('add-file-cancel').addEventListener('click', () => closeModal('add-file-modal'));
+    document.getElementById('add-file-create').addEventListener('click', () => { const n = document.getElementById('add-file-input').value.trim(); if(n){addFile(n);closeModal('add-file-modal');} });
+    document.getElementById('add-file-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('add-file-create').click(); });
 
     // Rename File
     document.getElementById('rename-file-close').addEventListener('click',  () => closeModal('rename-file-modal'));
     document.getElementById('rename-file-cancel').addEventListener('click', () => closeModal('rename-file-modal'));
     document.getElementById('rename-file-save').addEventListener('click', () => {
         const newName = document.getElementById('rename-file-input').value.trim();
-        if (!newName || !state.deleteTarget) return;
-        renameFile(state.deleteTarget.filename, newName);
-        state.deleteTarget = null;
-        closeModal('rename-file-modal');
+        if (newName && state.deleteTarget) { renameFile(state.deleteTarget.filename, newName); state.deleteTarget = null; closeModal('rename-file-modal'); }
     });
-    document.getElementById('rename-file-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') document.getElementById('rename-file-save').click();
-    });
+    document.getElementById('rename-file-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('rename-file-save').click(); });
 
     // Delete Confirm
     document.getElementById('delete-confirm-close').addEventListener('click',  () => closeModal('delete-confirm-modal'));
     document.getElementById('delete-confirm-cancel').addEventListener('click', () => closeModal('delete-confirm-modal'));
-    document.getElementById('delete-confirm-ok').addEventListener('click', () => {
-        executeDelete();
-        closeModal('delete-confirm-modal');
-    });
+    document.getElementById('delete-confirm-ok').addEventListener('click', () => { executeDelete(); closeModal('delete-confirm-modal'); });
 
     // Settings
     document.getElementById('settings-close').addEventListener('click',  () => closeModal('settings-modal'));
@@ -765,25 +1123,48 @@ function init() {
     document.getElementById('settings-save').addEventListener('click', saveSettings);
     document.getElementById('add-api-key-btn').addEventListener('click', () => {
         state.apiKeys.push({ id: genId(), name: '', baseUrl: '', key: '' });
-        renderApiKeysList();
-        renderProviderSelect();
+        renderApiKeysList(); renderProviderSelect();
+    });
+    document.getElementById('reset-prompt-btn').addEventListener('click', () => {
+        document.getElementById('custom-prompt-input').value = '';
+        toast('システムプロンプトをデフォルトに戻しました');
+    });
+
+    // Preset buttons
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const url = btn.dataset.url;
+            const model = btn.dataset.model;
+            // Find or create matching API key
+            let key = state.apiKeys.find(k => k.baseUrl === url);
+            if (!key) {
+                key = { id: genId(), name: new URL(url).hostname.split('.')[1] || url, baseUrl: url, key: '' };
+                state.apiKeys.push(key);
+            }
+            state.activeProvider = key.id;
+            state.activeModel = model;
+            renderApiKeysList();
+            renderProviderSelect();
+            // Switch to AI tab
+            document.querySelector('.modal-tab[data-tab="ai"]').click();
+            toast(`${model} を選択しました。APIキーを入力してください`);
+        });
     });
 
     // Notification
-    document.getElementById('notification-close').addEventListener('click', hideNotification);
-    document.getElementById('notification-dismiss-btn').addEventListener('click', hideNotification);
+    document.getElementById('notification-close').addEventListener('click', hideNotif);
+    document.getElementById('notification-dismiss-btn').addEventListener('click', hideNotif);
     document.getElementById('notification-delete-btn').addEventListener('click', () => {
         if (state.pendingApiKeyId) {
             state.apiKeys = state.apiKeys.filter(k => k.id !== state.pendingApiKeyId);
             if (state.activeProvider === state.pendingApiKeyId) { state.activeProvider = null; state.activeModel = ''; }
-            saveState();
-            updateProviderBadge();
-            updateSendButton();
+            save(); updateBadge(); updateSendBtn();
+            toast('APIキーを削除しました', 'warning');
         }
-        hideNotification();
+        hideNotif();
     });
 
-    // Close modal on overlay click
+    // Close modals on overlay click
     document.querySelectorAll('.modal-overlay').forEach(o => {
         o.addEventListener('click', e => { if (e.target === o) o.classList.add('hidden'); });
     });
