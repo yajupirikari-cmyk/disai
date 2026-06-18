@@ -6,60 +6,123 @@
 const TEMPLATES = [
     {
         id: 'discord-py',
-        name: 'Discord Bot (Python)',
-        desc: 'discord.py v2.x ベースのBot',
-        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+        name: 'Discord Bot',
+        desc: 'Python / discord.py v2',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
         files: [
-            { name: 'main.py', content: '# Discord Bot (Python) - AIに「Botを作って」と指示してください\n' },
+            { name: 'main.py', content: '# Discord Bot (Python)\n# AIに「コマンドBotを作って」などと指示してください\n' },
             { name: 'requirements.txt', content: 'discord.py>=2.3.0\npython-dotenv\n' },
             { name: '.env.example', content: 'DISCORD_TOKEN=your_token_here\n' },
         ]
     },
     {
         id: 'discord-js',
-        name: 'Discord Bot (Node.js)',
-        desc: 'discord.js v14 ベースのBot',
-        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+        name: 'Discord Bot',
+        desc: 'Node.js / discord.js v14',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
         files: [
-            { name: 'index.js', content: '// Discord Bot (Node.js) - AIに「Botを作って」と指示してください\n' },
+            { name: 'index.js', content: '// Discord Bot (Node.js)\n// AIに指示してください\n' },
             { name: 'package.json', content: '{\n  "name": "discord-bot",\n  "version": "1.0.0",\n  "main": "index.js",\n  "dependencies": {\n    "discord.js": "^14.0.0",\n    "dotenv": "^16.0.0"\n  }\n}\n' },
         ]
     },
     {
         id: 'webapp',
         name: 'Webアプリ',
-        desc: 'HTML + CSS + JS',
-        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+        desc: 'HTML + CSS + JavaScript',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
         files: [
-            { name: 'index.html', content: '<!DOCTYPE html>\n<html lang="ja">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Webアプリ</title>\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <!-- AIに指示してください -->\n    <script src="app.js"></script>\n</body>\n</html>\n' },
-            { name: 'style.css', content: '/* スタイル */\n' },
-            { name: 'app.js', content: '// JavaScript\n' },
+            { name: 'index.html', content: '<!DOCTYPE html>\n<html lang="ja">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Webアプリ</title>\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n\n    <script src="app.js"></script>\n</body>\n</html>\n' },
+            { name: 'style.css', content: '/* スタイル */\n* { box-sizing: border-box; margin: 0; padding: 0; }\nbody { font-family: system-ui, sans-serif; }\n' },
+            { name: 'app.js', content: '// メインスクリプト\n' },
         ]
     },
     {
-        id: 'api',
+        id: 'react',
+        name: 'React アプリ',
+        desc: 'Vite + React + TypeScript',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="2"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/></svg>`,
+        files: [
+            { name: 'App.tsx', content: 'import { useState } from "react"\n\nfunction App() {\n  const [count, setCount] = useState(0)\n  return (\n    <div>\n      <h1>React App</h1>\n      <button onClick={() => setCount(c => c + 1)}>Count: {count}</button>\n    </div>\n  )\n}\n\nexport default App\n' },
+            { name: 'main.tsx', content: 'import { StrictMode } from "react"\nimport { createRoot } from "react-dom/client"\nimport App from "./App"\n\ncreateRoot(document.getElementById("root")!).render(\n  <StrictMode><App /></StrictMode>\n)\n' },
+            { name: 'package.json', content: '{\n  "name": "react-app",\n  "scripts": { "dev": "vite", "build": "vite build" },\n  "dependencies": { "react": "^18.0.0", "react-dom": "^18.0.0" },\n  "devDependencies": { "@vitejs/plugin-react": "^4.0.0", "typescript": "^5.0.0", "vite": "^5.0.0" }\n}\n' },
+        ]
+    },
+    {
+        id: 'fastapi',
         name: 'REST API',
-        desc: 'Python FastAPI / Node Express',
-        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+        desc: 'Python / FastAPI',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
         files: [
-            { name: 'main.py', content: '# FastAPI アプリ - AIに「APIを作って」と指示してください\n' },
-            { name: 'requirements.txt', content: 'fastapi>=0.100.0\nuvicorn[standard]\n' },
+            { name: 'main.py', content: 'from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get("/")\ndef root():\n    return {"message": "Hello World"}\n' },
+            { name: 'requirements.txt', content: 'fastapi>=0.100.0\nuvicorn[standard]\npydantic\n' },
         ]
     },
     {
-        id: 'script',
-        name: 'スクリプト',
-        desc: '自動化・データ処理',
-        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>',
+        id: 'express',
+        name: 'REST API',
+        desc: 'Node.js / Express',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`,
         files: [
-            { name: 'script.py', content: '# スクリプト - AIに「〇〇するスクリプトを作って」と指示してください\n' },
+            { name: 'index.js', content: 'const express = require("express")\nconst app = express()\n\napp.use(express.json())\n\napp.get("/", (req, res) => {\n  res.json({ message: "Hello World" })\n})\n\napp.listen(3000, () => console.log("Server running on port 3000"))\n' },
+            { name: 'package.json', content: '{\n  "name": "express-api",\n  "version": "1.0.0",\n  "main": "index.js",\n  "dependencies": { "express": "^4.18.0" }\n}\n' },
+        ]
+    },
+    {
+        id: 'cli',
+        name: 'CLIツール',
+        desc: 'Python コマンドラインアプリ',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
+        files: [
+            { name: 'main.py', content: 'import argparse\n\ndef main():\n    parser = argparse.ArgumentParser(description="CLIツール")\n    parser.add_argument("input", help="入力")\n    args = parser.parse_args()\n    print(f"入力: {args.input}")\n\nif __name__ == "__main__":\n    main()\n' },
+        ]
+    },
+    {
+        id: 'scraper',
+        name: 'スクレイパー',
+        desc: 'Python / BeautifulSoup',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+        files: [
+            { name: 'scraper.py', content: 'import requests\nfrom bs4 import BeautifulSoup\n\ndef scrape(url: str):\n    res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})\n    soup = BeautifulSoup(res.text, "html.parser")\n    return soup\n\nif __name__ == "__main__":\n    soup = scrape("https://example.com")\n    print(soup.title.text)\n' },
+            { name: 'requirements.txt', content: 'requests\nbeautifulsoup4\n' },
+        ]
+    },
+    {
+        id: 'linebot',
+        name: 'LINE Bot',
+        desc: 'Python / LINE Messaging API',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
+        files: [
+            { name: 'main.py', content: 'from flask import Flask, request, abort\nfrom linebot.v3 import WebhookHandler\nfrom linebot.v3.messaging import ApiClient, Configuration, MessagingApi\nfrom linebot.v3.webhooks import MessageEvent, TextMessageContent\nimport os\n\napp = Flask(__name__)\nhandler = WebhookHandler(os.environ["LINE_CHANNEL_SECRET"])\n\n@app.route("/callback", methods=["POST"])\ndef callback():\n    signature = request.headers["X-Line-Signature"]\n    body = request.get_data(as_text=True)\n    handler.handle(body, signature)\n    return "OK"\n\n@handler.add(MessageEvent, message=TextMessageContent)\ndef handle_message(event):\n    # AIに返信ロジックを作ってもらってください\n    pass\n\nif __name__ == "__main__":\n    app.run(port=5000)\n' },
+            { name: 'requirements.txt', content: 'flask\nline-bot-sdk\n' },
+            { name: '.env.example', content: 'LINE_CHANNEL_SECRET=\nLINE_CHANNEL_ACCESS_TOKEN=\n' },
+        ]
+    },
+    {
+        id: 'dataanalysis',
+        name: 'データ分析',
+        desc: 'Python / pandas + matplotlib',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>`,
+        files: [
+            { name: 'analysis.py', content: 'import pandas as pd\nimport matplotlib.pyplot as plt\n\n# データを読み込む\n# df = pd.read_csv("data.csv")\n\n# サンプルデータ\ndf = pd.DataFrame({"x": range(10), "y": [i**2 for i in range(10)]})\n\nprint(df.describe())\n\nplt.figure(figsize=(8, 5))\nplt.plot(df["x"], df["y"])\nplt.title("Sample Plot")\nplt.savefig("output.png")\nplt.show()\n' },
+            { name: 'requirements.txt', content: 'pandas\nmatplotlib\nseaborn\nnumpy\n' },
+        ]
+    },
+    {
+        id: 'telegrambot',
+        name: 'Telegram Bot',
+        desc: 'Python / python-telegram-bot',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`,
+        files: [
+            { name: 'bot.py', content: 'from telegram import Update\nfrom telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes\nimport os\n\nasync def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):\n    await update.message.reply_text("Bot起動中")\n\nasync def echo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):\n    await update.message.reply_text(update.message.text)\n\napp = ApplicationBuilder().token(os.environ["BOT_TOKEN"]).build()\napp.add_handler(CommandHandler("start", start))\napp.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))\napp.run_polling()\n' },
+            { name: 'requirements.txt', content: 'python-telegram-bot>=20.0\npython-dotenv\n' },
+            { name: '.env.example', content: 'BOT_TOKEN=your_token_here\n' },
         ]
     },
     {
         id: 'blank',
         name: '空白',
         desc: '何でも自由に',
-        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+        icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
         files: [
             { name: 'main.py', content: '' },
         ]
@@ -95,6 +158,8 @@ const state = {
     pendingDangerCallback: null,
     // Max mode
     maxMode: false,
+    // Last used template
+    lastUsedTemplate: null,
 };
 
 // ===== PERSISTENCE =====
@@ -107,6 +172,7 @@ function save() {
         localStorage.setItem('acb_customPrompt', state.customPrompt || '');
         localStorage.setItem('acb_theme', state.theme || 'dark');
         localStorage.setItem('acb_maxMode', state.maxMode ? '1' : '0');
+        localStorage.setItem('acb_lastTpl', state.lastUsedTemplate || '');
     } catch(e) { console.error('Save error:', e); }
 }
 
@@ -120,6 +186,7 @@ function load() {
         state.customPrompt = localStorage.getItem('acb_customPrompt') || localStorage.getItem('dbb_customPrompt') || '';
         state.theme        = localStorage.getItem('acb_theme') || localStorage.getItem('dbb_theme') || 'dark';
         state.maxMode      = localStorage.getItem('acb_maxMode') === '1';
+        state.lastUsedTemplate = localStorage.getItem('acb_lastTpl') || null;
     } catch(e) {
         state.projects = []; state.apiKeys = [];
     }
@@ -246,9 +313,19 @@ function renderTemplates() {
     grid.innerHTML = '';
     TEMPLATES.forEach(t => {
         const card = document.createElement('div');
-        card.className = 'template-card';
-        card.innerHTML = `<div class="template-icon">${t.icon}</div><div class="template-name">${esc(t.name)}</div><div class="template-desc">${esc(t.desc)}</div>`;
-        card.addEventListener('click', () => createProjectFromTemplate(t));
+        const isActive = state.lastUsedTemplate === t.id;
+        card.className = 'template-card' + (isActive ? ' template-card--active' : '');
+        card.title = t.name + ' — ' + t.desc;
+        // icon is raw SVG (no class="icon" needed — styled by .template-icon svg)
+        card.innerHTML = `
+            <div class="template-icon">${t.icon}</div>
+            <div class="template-name">${esc(t.name)}</div>
+            <div class="template-desc">${esc(t.desc)}</div>
+            ${isActive ? '<div class="template-active-dot"></div>' : ''}`;
+        card.addEventListener('click', () => {
+            state.lastUsedTemplate = t.id;
+            createProjectFromTemplate(t);
+        });
         grid.appendChild(card);
     });
 }
