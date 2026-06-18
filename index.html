@@ -165,9 +165,18 @@
             <!-- Chat Panel -->
             <div class="chat-panel">
                 <div class="chat-header">
-                    <span class="chat-title">AI アシスタント</span>
+                    <div class="chat-title-row">
+                        <span class="chat-title">AI アシスタント</span>
+                        <span id="max-mode-badge" class="max-mode-badge hidden">MAX</span>
+                    </div>
                     <div class="chat-header-actions">
                         <span id="active-provider-badge" class="provider-badge">未設定</span>
+                        <button id="max-mode-btn" class="btn btn-icon-sm" title="MAXモード — AIの性能を限界まで引き上げる">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        </button>
+                        <button id="auto-optimize-btn" class="btn btn-icon-sm" title="自動最適化 — コードをパフォーマンス/セキュリティ/可読性の3軸で改善">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                        </button>
                         <button id="auto-mode-btn" class="btn btn-icon-sm" title="自動反復モード">
                             <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
                         </button>

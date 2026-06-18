@@ -93,6 +93,8 @@ const state = {
     // Danger confirm
     pendingDangerFiles: null,
     pendingDangerCallback: null,
+    // Max mode
+    maxMode: false,
 };
 
 // ===== PERSISTENCE =====
@@ -104,6 +106,7 @@ function save() {
         localStorage.setItem('acb_activeModel', state.activeModel || '');
         localStorage.setItem('acb_customPrompt', state.customPrompt || '');
         localStorage.setItem('acb_theme', state.theme || 'dark');
+        localStorage.setItem('acb_maxMode', state.maxMode ? '1' : '0');
     } catch(e) { console.error('Save error:', e); }
 }
 
@@ -116,6 +119,7 @@ function load() {
         state.activeModel  = localStorage.getItem('acb_activeModel') || localStorage.getItem('dbb_activeModel') || '';
         state.customPrompt = localStorage.getItem('acb_customPrompt') || localStorage.getItem('dbb_customPrompt') || '';
         state.theme        = localStorage.getItem('acb_theme') || localStorage.getItem('dbb_theme') || 'dark';
+        state.maxMode      = localStorage.getItem('acb_maxMode') === '1';
     } catch(e) {
         state.projects = []; state.apiKeys = [];
     }
@@ -303,6 +307,8 @@ function openProject(id) {
             <p class="welcome-text">作りたいものを教えてください。</p>
             <p class="welcome-hint">AIがコードを生成・改善します</p>
         </div>`;
+    proj.chatHistory = cleanHistory(proj.chatHistory);
+    save();
     (proj.chatHistory || []).forEach(m => appendMsg(m.role, m.content, m.time, false));
 
     state.diffMode = false;
@@ -710,6 +716,20 @@ function hideNotif() {
     state.pendingApiKeyId = null;
 }
 
+// ===== CHAT HISTORY MIGRATION =====
+// Strip old Discord-Bot-specialist boilerplate from saved chat history
+const STALE_PATTERNS = [
+    /こんにちは[！!]?\s*Discord[ボボ]ット開発の専門家/,
+    /Discordボット開発.*専門家.*アシスタント/,
+    /作りたい.*Discordボット.*内容を教えて/,
+];
+function cleanHistory(history) {
+    return (history || []).filter(m => {
+        if (m.role !== 'assistant') return true;
+        return !STALE_PATTERNS.some(re => re.test(m.content));
+    });
+}
+
 // ===== CHAT =====
 function appendMsg(role, content, time, doSave = true) {
     const container = document.getElementById('chat-messages');
@@ -717,8 +737,8 @@ function appendMsg(role, content, time, doSave = true) {
 
     const div = document.createElement('div');
     div.className = `chat-msg chat-msg--${role}`;
-    const formatted = esc(content).replace(/\n/g, '<br>');
-    div.innerHTML = `<div class="chat-bubble">${formatted}</div><span class="chat-msg-time">${time || fmtTime(Date.now())}</span>`;
+    const rendered = role === 'assistant' ? renderMarkdown(content) : esc(content).replace(/\n/g, '<br>');
+    div.innerHTML = `<div class="chat-bubble">${rendered}</div><span class="chat-msg-time">${time || fmtTime(Date.now())}</span>`;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 
@@ -760,7 +780,7 @@ function finalizeStreamingMsg(bubble, content) {
     if (!div) return;
     div.removeAttribute('id');
     bubble.classList.remove('streaming-cursor');
-    bubble.innerHTML = esc(content).replace(/\n/g, '<br>');
+    bubble.innerHTML = renderMarkdown(content);
     document.getElementById('chat-messages').scrollTop = 99999;
 
     const proj = getProj();
@@ -824,7 +844,13 @@ async function callAIStream(messages, onChunk) {
     const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key.key}` },
-        body: JSON.stringify({ model: state.activeModel, messages, temperature: 0.2, max_tokens: 8192, stream: true }),
+        body: JSON.stringify({
+            model: state.activeModel,
+            messages,
+            temperature: state.maxMode ? 0 : 0.2,
+            max_tokens: state.maxMode ? 16000 : 8192,
+            stream: true,
+        }),
     });
 
     if (!res.ok) {
@@ -870,7 +896,7 @@ async function callAI(messages) {
     const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key.key}` },
-        body: JSON.stringify({ model: state.activeModel, messages, temperature: 0.2, max_tokens: 8192 }),
+        body: JSON.stringify({ model: state.activeModel, messages, temperature: state.maxMode ? 0 : 0.2, max_tokens: state.maxMode ? 16000 : 8192 }),
     });
     if (!res.ok) {
         const j = await res.json().catch(()=>({}));
@@ -895,9 +921,42 @@ ${goal ? `目標: ${goal}` : ''}
 前回の出力を批判的に見直し、バグ・エラーハンドリング・可読性を改善してください。
 コード全体を再出力してください。` : '';
 
+    const maxNote = state.maxMode ? `
+【MAX MODE — 最高精度モード】
+あなたは今、最高水準のエンジニアリングを求められています。以下のプロセスを必ず実行してください:
+
+STEP 1 — 要件の深堀り:
+  - ユーザーの表面的な要求の背後にある本質的なニーズを特定する
+  - エッジケース・境界値・想定外の入力を列挙する
+
+STEP 2 — 設計の検討:
+  - 少なくとも2つのアプローチを頭の中で比較し、最善を選択する
+  - 選んだ理由を1〜2文で説明する
+
+STEP 3 — コード生成:
+  - 型安全・null安全・エラーハンドリングを完全に実装する
+  - パフォーマンスを意識し、O(n²)以上の処理は回避する
+  - セキュリティリスク（SQLインジェクション・XSS等）を排除する
+
+STEP 4 — 自己批判:
+  - 生成したコードを批判的にレビューし、潜在バグを1つ以上指摘して修正する
+  - 「このコードの弱点は？」と自問して改善を加える
+
+STEP 5 — 最終出力:
+  - 上記すべてを反映した完全なコードを出力する
+  - コメントは重要な箇所のみ、簡潔に記述する` : '';
+
     const base = `あなたは優秀なソフトウェアエンジニアです。
-ユーザーの要望に応じてコードを生成・改善します。どんな言語やフレームワークにも対応します。
+ユーザーの要望に応じてコードを生成・改善します。Python / JavaScript / TypeScript / Rust / Go / HTML / CSS など、どんな言語・フレームワークにも対応します。
 ${autoNote}
+${maxNote}
+
+【重要な制約】
+- 自己紹介は絶対にしないでください。「こんにちは」などの挨拶も不要です
+- 専門分野を名乗らないでください（例:「Discordボット開発の専門家」など）
+- 絵文字は使用しないでください
+- 最初のメッセージからすぐ本題に入ってください
+
 【プロジェクト名】${proj?.name || '未設定'}
 
 【コード生成ルール】
@@ -915,9 +974,62 @@ ${autoNote}
 【現在のファイル】
 ${filesStr || '(まだファイルはありません)'}
 
-すべての回答は日本語で、わかりやすく説明してください。`;
+すべての回答は日本語で、簡潔に説明してください。`;
 
     return state.customPrompt ? state.customPrompt + '\n\n' + base : base;
+}
+
+// ===== MARKDOWN RENDERER =====
+function renderMarkdown(text) {
+    // Escape HTML
+    let s = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // Fenced code blocks — extract and protect them
+    const blocks = [];
+    s = s.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+        const idx = blocks.length;
+        blocks.push(`<div class="md-codeblock"><div class="md-codeblock-header"><span class="md-lang">${lang || 'code'}</span><button class="md-copy-btn" onclick="copyMdCode(this)">コピー</button></div><pre class="md-pre"><code>${code.trimEnd()}</code></pre></div>`);
+        return `\x00BLOCK${idx}\x00`;
+    });
+
+    // Inline code
+    s = s.replace(/`([^`\n]+)`/g, '<code class="md-inline">$1</code>');
+
+    // Bold
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+
+    // Italic
+    s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+
+    // Headers
+    s = s.replace(/^### (.+)$/gm, '<p class="md-h3">$1</p>');
+    s = s.replace(/^## (.+)$/gm, '<p class="md-h2">$1</p>');
+    s = s.replace(/^# (.+)$/gm, '<p class="md-h1">$1</p>');
+
+    // Lists
+    s = s.replace(/^[-*] (.+)$/gm, '<div class="md-li">$1</div>');
+    s = s.replace(/^\d+\. (.+)$/gm, '<div class="md-li">$1</div>');
+
+    // Line breaks (not around block placeholders)
+    s = s.replace(/\n/g, '<br>');
+    s = s.replace(/<br>(\x00BLOCK)/g, '$1');
+    s = s.replace(/(\x00)<br>/g, '$1');
+
+    // Restore code blocks
+    s = s.replace(/\x00BLOCK(\d+)\x00/g, (_, i) => blocks[parseInt(i)]);
+
+    return s;
+}
+
+function copyMdCode(btn) {
+    const code = btn.closest('.md-codeblock').querySelector('code').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        btn.textContent = 'コピー済';
+        setTimeout(() => btn.textContent = 'コピー', 1500);
+    }).catch(() => {});
 }
 
 // ===== PARSE & APPLY FILES =====
@@ -1134,6 +1246,138 @@ function stopAutoMode() {
     document.getElementById('auto-mode-label').textContent = '停止中...';
 }
 
+// ===== MAX MODE =====
+function toggleMaxMode() {
+    state.maxMode = !state.maxMode;
+    save();
+    applyMaxModeUI();
+    if (state.maxMode) {
+        toast('MAX モード ON — 最高精度で応答します', 'warning', 3000);
+    } else {
+        toast('MAX モード OFF', 'success');
+    }
+}
+
+function applyMaxModeUI() {
+    const btn = document.getElementById('max-mode-btn');
+    const sendBtn = document.getElementById('send-btn');
+    const inputArea = document.querySelector('.chat-input-area');
+    const badge = document.getElementById('max-mode-badge');
+
+    if (state.maxMode) {
+        btn.classList.add('max-mode-active');
+        sendBtn.classList.add('send-btn-max');
+        inputArea.classList.add('input-area-max');
+        badge.classList.remove('hidden');
+    } else {
+        btn.classList.remove('max-mode-active');
+        sendBtn.classList.remove('send-btn-max');
+        inputArea.classList.remove('input-area-max');
+        badge.classList.add('hidden');
+    }
+}
+
+// ===== AUTO OPTIMIZE =====
+async function autoOptimize() {
+    if (state.isStreaming || state.autoMode.running) {
+        toast('処理中は実行できません', 'warning');
+        return;
+    }
+    if (!state.activeProvider || !state.activeModel) {
+        toast('設定からAPIキーとモデルを登録してください', 'error');
+        return;
+    }
+    const proj = getProj();
+    if (!proj) return;
+
+    const hasCode = proj.files.some(f => f.content && f.content.trim().length > 10);
+    if (!hasCode) {
+        toast('最適化するコードがありません', 'warning');
+        return;
+    }
+
+    // Build a comprehensive optimization prompt
+    const filesStr = proj.files.filter(f => f.content).map(f => `=== ${f.name} ===\n${f.content}`).join('\n\n');
+    const optimizePrompt = `以下のコードを3つの観点から分析・最適化してください。
+
+【最適化の観点】
+1. パフォーマンス — 不要な処理・非効率なアルゴリズム・冗長なループを改善
+2. セキュリティ — 脆弱性・インジェクションリスク・不適切な入力検証を修正
+3. 可読性・保守性 — 命名・構造・コメント・関数の分割を改善
+
+【手順】
+- 各観点で問題点を特定して説明してください
+- 改善したコードを「ファイル: ファイル名」形式で出力してください
+- 変更箇所の理由を簡潔に説明してください
+
+【対象コード】
+${filesStr}`;
+
+    appendSystemMsg('自動最適化を開始します — パフォーマンス / セキュリティ / 可読性の3軸で分析中...');
+
+    const proj2 = getProj();
+    const history = (proj2.chatHistory || []).slice(-6).map(m => ({ role: m.role, content: m.content }));
+    const sysPrompt = buildSysPrompt();
+    const messages = [
+        { role: 'system', content: sysPrompt },
+        ...history,
+        { role: 'user', content: optimizePrompt },
+    ];
+
+    state.isStreaming = true;
+    updateSendBtn();
+    showProg(); setProg(1, 20);
+
+    try {
+        await delay(200);
+        setProg(1, 50);
+        let fullResponse = '';
+        const streamBubble = appendStreamingMsg();
+
+        try {
+            fullResponse = await callAIStream(messages, (partial) => {
+                streamBubble.innerHTML = esc(partial).replace(/\n/g, '<br>');
+                document.getElementById('chat-messages').scrollTop = 99999;
+                setProg(2, 70);
+            });
+        } catch {
+            showTyping();
+            fullResponse = await callAI(messages);
+            hideTyping();
+            document.getElementById('streaming-msg')?.remove();
+        }
+
+        setProg(3, 90); await delay(150); setProg(3, 100);
+        hideProg();
+        finalizeStreamingMsg(streamBubble, fullResponse);
+
+        const files = parseFiles(fullResponse);
+        if (files.length > 0) {
+            await applyFiles(files);
+            toast(`最適化完了 — ${files.length}個のファイルを更新しました`);
+        } else {
+            toast('最適化分析が完了しました');
+        }
+
+        // Save to history
+        const p = getProj();
+        if (p) {
+            if (!p.chatHistory) p.chatHistory = [];
+            p.chatHistory.push({ role: 'user', content: '[自動最適化]', time: fmtTime(Date.now()) });
+            p.chatHistory.push({ role: 'assistant', content: fullResponse, time: fmtTime(Date.now()) });
+            save();
+        }
+    } catch (err) {
+        hideTyping(); hideProg();
+        document.getElementById('streaming-msg')?.remove();
+        appendMsg('assistant', `エラーが発生しました:\n${err.message}`);
+        toast(err.message, 'error');
+    } finally {
+        state.isStreaming = false;
+        updateSendBtn();
+    }
+}
+
 // ===== COPY CODE =====
 function copyCode() {
     const proj = getProj();
@@ -1291,6 +1535,13 @@ async function init() {
     document.getElementById('auto-mode-cancel').addEventListener('click', () => closeModal('auto-mode-modal'));
     document.getElementById('auto-mode-start').addEventListener('click', startAutoMode);
     document.getElementById('auto-mode-stop-btn').addEventListener('click', stopAutoMode);
+
+    // Max mode
+    document.getElementById('max-mode-btn').addEventListener('click', toggleMaxMode);
+    applyMaxModeUI();
+
+    // Auto optimize
+    document.getElementById('auto-optimize-btn').addEventListener('click', autoOptimize);
 
     // Add File
     document.getElementById('add-tab-btn').addEventListener('click', () => { document.getElementById('add-file-input').value = ''; openModal('add-file-modal'); });
