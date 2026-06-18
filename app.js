@@ -1,55 +1,67 @@
 // ============================================================
-// Discord Bot Builder - app.js (高性能版)
+// AI Code Builder - app.js
 // ============================================================
 
 // ===== TEMPLATES =====
 const TEMPLATES = [
     {
-        id: 'music', name: '音楽Bot', icon: '🎵',
-        desc: '音楽再生・キュー管理',
+        id: 'discord-py',
+        name: 'Discord Bot (Python)',
+        desc: 'discord.py v2.x ベースのBot',
+        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
         files: [
-            { name: 'main.py', content: '# 音楽Bot - AIに「音楽Botを作って」と指示してください\n# このファイルはテンプレートです\n' },
-            { name: 'requirements.txt', content: 'discord.py>=2.3.0\nyt-dlp\nPyNaCl\n' },
+            { name: 'main.py', content: '# Discord Bot (Python) - AIに「Botを作って」と指示してください\n' },
+            { name: 'requirements.txt', content: 'discord.py>=2.3.0\npython-dotenv\n' },
+            { name: '.env.example', content: 'DISCORD_TOKEN=your_token_here\n' },
         ]
     },
     {
-        id: 'moderation', name: '管理Bot', icon: '🛡️',
-        desc: 'キック・BAN・ログ',
+        id: 'discord-js',
+        name: 'Discord Bot (Node.js)',
+        desc: 'discord.js v14 ベースのBot',
+        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
         files: [
-            { name: 'main.py', content: '# 管理Bot - AIに「管理Botを作って」と指示してください\n' },
-            { name: 'requirements.txt', content: 'discord.py>=2.3.0\n' },
+            { name: 'index.js', content: '// Discord Bot (Node.js) - AIに「Botを作って」と指示してください\n' },
+            { name: 'package.json', content: '{\n  "name": "discord-bot",\n  "version": "1.0.0",\n  "main": "index.js",\n  "dependencies": {\n    "discord.js": "^14.0.0",\n    "dotenv": "^16.0.0"\n  }\n}\n' },
         ]
     },
     {
-        id: 'game', name: 'ゲームBot', icon: '🎮',
-        desc: 'RPG・クイズ・ランキング',
+        id: 'webapp',
+        name: 'Webアプリ',
+        desc: 'HTML + CSS + JS',
+        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
         files: [
-            { name: 'main.py', content: '# ゲームBot - AIに「ゲームBotを作って」と指示してください\n' },
-            { name: 'requirements.txt', content: 'discord.py>=2.3.0\naiosqlite\n' },
+            { name: 'index.html', content: '<!DOCTYPE html>\n<html lang="ja">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Webアプリ</title>\n    <link rel="stylesheet" href="style.css">\n</head>\n<body>\n    <!-- AIに指示してください -->\n    <script src="app.js"></script>\n</body>\n</html>\n' },
+            { name: 'style.css', content: '/* スタイル */\n' },
+            { name: 'app.js', content: '// JavaScript\n' },
         ]
     },
     {
-        id: 'utility', name: 'ユーティリティ', icon: '🔧',
-        desc: '翻訳・天気・リマインダー',
+        id: 'api',
+        name: 'REST API',
+        desc: 'Python FastAPI / Node Express',
+        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
         files: [
-            { name: 'main.py', content: '# ユーティリティBot - AIに「ユーティリティBotを作って」と指示してください\n' },
-            { name: 'requirements.txt', content: 'discord.py>=2.3.0\nhttpx\n' },
+            { name: 'main.py', content: '# FastAPI アプリ - AIに「APIを作って」と指示してください\n' },
+            { name: 'requirements.txt', content: 'fastapi>=0.100.0\nuvicorn[standard]\n' },
         ]
     },
     {
-        id: 'welcome', name: 'ウェルカムBot', icon: '👋',
-        desc: '入退室メッセージ',
+        id: 'script',
+        name: 'スクリプト',
+        desc: '自動化・データ処理',
+        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/></svg>',
         files: [
-            { name: 'main.py', content: '# ウェルカムBot - AIに「ウェルカムBotを作って」と指示してください\n' },
-            { name: 'requirements.txt', content: 'discord.py>=2.3.0\n' },
+            { name: 'script.py', content: '# スクリプト - AIに「〇〇するスクリプトを作って」と指示してください\n' },
         ]
     },
     {
-        id: 'ai', name: 'AIチャットBot', icon: '🤖',
-        desc: 'AI会話・質問応答',
+        id: 'blank',
+        name: '空白',
+        desc: '何でも自由に',
+        icon: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
         files: [
-            { name: 'main.py', content: '# AI チャットBot - AIに「AI会話Botを作って」と指示してください\n' },
-            { name: 'requirements.txt', content: 'discord.py>=2.3.0\nopenai\n' },
+            { name: 'main.py', content: '' },
         ]
     },
 ];
@@ -67,32 +79,43 @@ const state = {
     deleteTarget: null,
     pendingApiKeyId: null,
     monacoEditor: null,
-    monacoDiffEditor: null,
     diffMode: false,
-    prevFileContent: {},   // { filename: lastContent }
+    prevFileContent: {},
     isStreaming: false,
+    // Auto mode
+    autoMode: {
+        running: false,
+        totalIter: 3,
+        currentIter: 0,
+        goal: '',
+        stopRequested: false,
+    },
+    // Danger confirm
+    pendingDangerFiles: null,
+    pendingDangerCallback: null,
 };
 
 // ===== PERSISTENCE =====
 function save() {
     try {
-        localStorage.setItem('dbb_projects', JSON.stringify(state.projects));
-        localStorage.setItem('dbb_apiKeys', JSON.stringify(state.apiKeys));
-        localStorage.setItem('dbb_activeProvider', state.activeProvider || '');
-        localStorage.setItem('dbb_activeModel', state.activeModel || '');
-        localStorage.setItem('dbb_customPrompt', state.customPrompt || '');
-        localStorage.setItem('dbb_theme', state.theme || 'dark');
+        localStorage.setItem('acb_projects', JSON.stringify(state.projects));
+        localStorage.setItem('acb_apiKeys', JSON.stringify(state.apiKeys));
+        localStorage.setItem('acb_activeProvider', state.activeProvider || '');
+        localStorage.setItem('acb_activeModel', state.activeModel || '');
+        localStorage.setItem('acb_customPrompt', state.customPrompt || '');
+        localStorage.setItem('acb_theme', state.theme || 'dark');
     } catch(e) { console.error('Save error:', e); }
 }
 
 function load() {
     try {
-        state.projects     = JSON.parse(localStorage.getItem('dbb_projects')) || [];
-        state.apiKeys      = JSON.parse(localStorage.getItem('dbb_apiKeys')) || [];
-        state.activeProvider = localStorage.getItem('dbb_activeProvider') || null;
-        state.activeModel  = localStorage.getItem('dbb_activeModel') || '';
-        state.customPrompt = localStorage.getItem('dbb_customPrompt') || '';
-        state.theme        = localStorage.getItem('dbb_theme') || 'dark';
+        // Try new key, fallback to old key for migration
+        state.projects     = JSON.parse(localStorage.getItem('acb_projects') || localStorage.getItem('dbb_projects')) || [];
+        state.apiKeys      = JSON.parse(localStorage.getItem('acb_apiKeys') || localStorage.getItem('dbb_apiKeys')) || [];
+        state.activeProvider = localStorage.getItem('acb_activeProvider') || localStorage.getItem('dbb_activeProvider') || null;
+        state.activeModel  = localStorage.getItem('acb_activeModel') || localStorage.getItem('dbb_activeModel') || '';
+        state.customPrompt = localStorage.getItem('acb_customPrompt') || localStorage.getItem('dbb_customPrompt') || '';
+        state.theme        = localStorage.getItem('acb_theme') || localStorage.getItem('dbb_theme') || 'dark';
     } catch(e) {
         state.projects = []; state.apiKeys = [];
     }
@@ -107,7 +130,27 @@ const delay = ms => new Promise(r => setTimeout(r, ms));
 
 function getLang(filename) {
     const ext = (filename||'').split('.').pop().toLowerCase();
-    return {py:'python',js:'javascript',ts:'typescript',json:'json',sh:'shell',bash:'shell',md:'markdown',yml:'yaml',yaml:'yaml',txt:'plaintext',env:'plaintext',toml:'toml'}[ext] || 'plaintext';
+    return {py:'python',js:'javascript',ts:'typescript',jsx:'javascript',tsx:'typescript',json:'json',sh:'shell',bash:'shell',md:'markdown',yml:'yaml',yaml:'yaml',txt:'plaintext',env:'plaintext',toml:'toml',html:'html',css:'css',rs:'rust',go:'go',rb:'ruby',java:'java',cpp:'cpp',c:'c',cs:'csharp'}[ext] || 'plaintext';
+}
+
+// ===== DANGER DETECTION =====
+// Detects patterns that could be harmful in generated code
+const DANGER_PATTERNS = [
+    { re: /os\.system\s*\(|subprocess\.(run|Popen|call)\s*\(.*shell\s*=\s*True/i, msg: 'シェルコマンドの実行 (shell=True)' },
+    { re: /rm\s+-rf|rmdir\s+\/|del\s+\/[Ss]/i, msg: 'ファイル・ディレクトリの強制削除コマンド' },
+    { re: /eval\s*\(|exec\s*\(/i, msg: '動的コード実行 (eval/exec)' },
+    { re: /import\s+ctypes|__import__\s*\(/i, msg: '低レベルシステムアクセス (ctypes)' },
+    { re: /DROP\s+TABLE|DELETE\s+FROM\s+\w+\s*;/i, msg: 'データベースの破壊的操作' },
+    { re: /localStorage\.clear\(\)|sessionStorage\.clear\(\)/i, msg: 'ストレージの全削除' },
+    { re: /(https?:\/\/[^\s"']+)\s*\/\s*(token|password|secret|credential)/i, msg: '資格情報の外部送信の可能性' },
+];
+
+function detectDanger(code) {
+    const found = [];
+    for (const p of DANGER_PATTERNS) {
+        if (p.re.test(code)) found.push(p.msg);
+    }
+    return found;
 }
 
 // ===== TOAST =====
@@ -119,7 +162,7 @@ function toast(msg, type = 'success', duration = 2500) {
     };
     const el = document.createElement('div');
     el.className = `toast ${type}`;
-    el.innerHTML = icons[type] + esc(msg);
+    el.innerHTML = (icons[type] || '') + esc(msg);
     document.getElementById('toast-container').appendChild(el);
     setTimeout(() => { el.classList.add('toast-out'); setTimeout(() => el.remove(), 300); }, duration);
 }
@@ -131,12 +174,9 @@ function applyTheme(theme) {
     const isDark = theme === 'dark';
     document.querySelectorAll('.icon-sun').forEach(el => el.classList.toggle('hidden', isDark));
     document.querySelectorAll('.icon-moon').forEach(el => el.classList.toggle('hidden', !isDark));
-    if (state.monacoEditor) {
-        monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
-    }
+    if (state.monacoEditor) monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
     save();
 }
-
 function toggleTheme() { applyTheme(state.theme === 'dark' ? 'light' : 'dark'); }
 
 // ===== SCREEN =====
@@ -153,7 +193,6 @@ const closeModal = id => document.getElementById(id).classList.add('hidden');
 function initMonaco() {
     return new Promise(resolve => {
         if (typeof monaco === 'undefined') {
-            // Monaco not loaded yet, retry
             setTimeout(() => initMonaco().then(resolve), 200);
             return;
         }
@@ -175,7 +214,6 @@ function initMonaco() {
             cursorSmoothCaretAnimation: 'on',
         });
 
-        // Save edits back to project
         state.monacoEditor.onDidChangeModelContent(() => {
             if (state.isStreaming) return;
             const proj = getProj();
@@ -213,15 +251,13 @@ function renderTemplates() {
 
 function createProjectFromTemplate(template) {
     const proj = {
-        id: genId(), name: template.name + ' Bot',
+        id: genId(), name: template.name,
         createdAt: Date.now(),
         files: template.files.map(f => ({...f})),
         chatHistory: [],
     };
     state.projects.unshift(proj);
-    save();
-    renderProjects();
-    openProject(proj.id);
+    save(); renderProjects(); openProject(proj.id);
     toast(`「${template.name}」テンプレートを適用しました`);
 }
 
@@ -260,13 +296,12 @@ function openProject(id) {
     state.currentProjectId = id;
     document.getElementById('project-title').textContent = proj.name;
 
-    // Reset chat
     const chatEl = document.getElementById('chat-messages');
     chatEl.innerHTML = `
         <div class="welcome-message">
-            <div class="welcome-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="m2 14 6-6"/><path d="m14 20 8-8"/></svg></div>
-            <p class="welcome-text">作りたいDiscordボットの内容を教えてください。</p>
-            <p class="welcome-hint">例: 音楽再生機能のあるBotを作って</p>
+            <div class="welcome-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+            <p class="welcome-text">作りたいものを教えてください。</p>
+            <p class="welcome-hint">AIがコードを生成・改善します</p>
         </div>`;
     (proj.chatHistory || []).forEach(m => appendMsg(m.role, m.content, m.time, false));
 
@@ -312,7 +347,9 @@ function renderTabs() {
     container.innerHTML = '';
     proj.files.forEach(file => {
         const tab = document.createElement('div');
-        tab.className = 'file-tab' + (file.name === state.currentFile ? ' active' : '');
+        const isEmpty = !file.content || file.content.trim() === '';
+        tab.className = 'file-tab' + (file.name === state.currentFile ? ' active' : '') + (isEmpty ? ' stale' : '');
+        tab.title = isEmpty ? `${file.name} (内容なし)` : file.name;
         tab.innerHTML = `
             <span>${esc(file.name)}</span>
             <span class="file-tab-close"><svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>`;
@@ -331,7 +368,10 @@ function showTabCtx(x, y, filename) {
     const m = document.createElement('div');
     m.className = 'tab-ctx-menu'; m.id = 'tab-ctx-menu';
     m.style.cssText = `left:${x}px;top:${y}px`;
-    m.innerHTML = `<div class="tab-ctx-item" data-a="rename">ファイル名を変更</div><div class="tab-ctx-item" data-a="download">ダウンロード</div><div class="tab-ctx-item danger" data-a="delete">削除</div>`;
+    m.innerHTML = `
+        <div class="tab-ctx-item" data-a="rename">名前を変更</div>
+        <div class="tab-ctx-item" data-a="download">ダウンロード</div>
+        <div class="tab-ctx-item danger" data-a="delete">削除</div>`;
     m.querySelector('[data-a="rename"]').onclick  = () => { removeTabCtx(); openRenameModal(filename); };
     m.querySelector('[data-a="download"]').onclick = () => { removeTabCtx(); downloadFile(filename); };
     m.querySelector('[data-a="delete"]').onclick  = () => { removeTabCtx(); confirmDelete('file', null, filename, `「${filename}」を削除しますか？`); };
@@ -346,7 +386,6 @@ function switchFile(name) {
     const file = proj.files.find(f => f.name === name);
     if (!file) return;
 
-    // Save current editor content before switching
     if (state.monacoEditor && state.currentFile) {
         const cur = proj.files.find(f => f.name === state.currentFile);
         if (cur) { cur.content = state.monacoEditor.getValue(); save(); }
@@ -357,11 +396,10 @@ function switchFile(name) {
     showEditorForFile(file);
 }
 
-// ===== FILE OPS =====
 function addFile(name) {
     const proj = getProj();
     if (!proj) return;
-    if (proj.files.find(f => f.name === name)) { toast('同じ名前のファイルが既に存在します', 'error'); return; }
+    if (proj.files.find(f => f.name === name)) { toast(`「${name}」はすでに存在します`, 'error'); return; }
     proj.files.push({ name, content: '' });
     save(); renderTabs(); switchFile(name);
     toast(`「${name}」を追加しました`);
@@ -376,13 +414,14 @@ function openRenameModal(filename) {
 function renameFile(oldName, newName) {
     const proj = getProj();
     if (!proj) return;
-    if (proj.files.find(f => f.name === newName)) { toast('同じ名前のファイルが既に存在します', 'error'); return; }
+    if (proj.files.find(f => f.name === newName)) { toast(`「${newName}」はすでに存在します`, 'error'); return; }
     const file = proj.files.find(f => f.name === oldName);
     if (!file) return;
     file.name = newName;
     if (state.currentFile === oldName) {
         state.currentFile = newName;
         document.getElementById('current-file-name').textContent = newName;
+        setEditorContent(file.content, newName);
     }
     save(); renderTabs();
     toast(`「${oldName}」を「${newName}」に変更しました`);
@@ -393,15 +432,53 @@ function downloadFile(filename) {
     if (!proj) return;
     const file = proj.files.find(f => f.name === filename);
     if (!file) return;
-    const blob = new Blob([file.content], { type: 'text/plain' });
+    const content = (filename === state.currentFile && state.monacoEditor)
+        ? state.monacoEditor.getValue() : file.content;
+    const blob = new Blob([content], { type: 'text/plain' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click(); URL.revokeObjectURL(a.href);
+    a.download = filename; a.click(); URL.revokeObjectURL(a.href);
     toast(`「${filename}」をダウンロードしました`);
 }
 
-// ===== DELETE =====
+// ===== CLEANUP TABS =====
+function openCleanupModal() {
+    const proj = getProj();
+    if (!proj) return;
+    const list = document.getElementById('cleanup-file-list');
+    list.innerHTML = '';
+    if (proj.files.length === 0) { toast('ファイルがありません', 'warning'); return; }
+
+    proj.files.forEach(file => {
+        const isEmpty = !file.content || file.content.trim() === '';
+        const item = document.createElement('label');
+        item.className = 'cleanup-file-item';
+        item.innerHTML = `
+            <input type="checkbox" value="${esc(file.name)}" ${isEmpty ? 'checked' : ''}>
+            <span class="cleanup-file-name">${esc(file.name)}</span>
+            <span class="cleanup-file-size">${file.content ? file.content.length + ' chars' : '0'}</span>
+            ${isEmpty ? '<span class="cleanup-file-empty">内容なし</span>' : ''}`;
+        const cb = item.querySelector('input');
+        cb.addEventListener('change', () => item.classList.toggle('selected', cb.checked));
+        if (isEmpty) item.classList.add('selected');
+        list.appendChild(item);
+    });
+    openModal('cleanup-modal');
+}
+
+function executeCleanup() {
+    const proj = getProj();
+    if (!proj) return;
+    const checks = document.querySelectorAll('#cleanup-file-list input[type="checkbox"]:checked');
+    const toDelete = Array.from(checks).map(c => c.value);
+    if (toDelete.length === 0) { toast('削除するファイルが選択されていません', 'warning'); return; }
+
+    const names = toDelete.join('、');
+    confirmDelete('files-bulk', null, toDelete, `以下のファイルを削除しますか？\n${names}`);
+    closeModal('cleanup-modal');
+}
+
+// ===== DELETE CONFIRM =====
 function confirmDelete(type, id, extra, message) {
     state.deleteTarget = { type, id, extra };
     document.getElementById('delete-confirm-message').textContent = message;
@@ -417,29 +494,41 @@ function executeDelete() {
         save(); renderProjects();
         toast(`「${name}」を削除しました`, 'warning');
     } else if (t.type === 'file') {
+        deleteSingleFile(t.extra);
+    } else if (t.type === 'files-bulk') {
         const proj = getProj();
         if (!proj) return;
-        proj.files = proj.files.filter(f => f.name !== t.extra);
+        t.extra.forEach(name => {
+            proj.files = proj.files.filter(f => f.name !== name);
+        });
         save();
-        if (state.currentFile === t.extra) {
+        if (t.extra.includes(state.currentFile)) {
             proj.files.length > 0 ? switchFile(proj.files[0].name) : showEmptyState();
         } else { renderTabs(); }
-        toast(`「${t.extra}」を削除しました`, 'warning');
+        toast(`${t.extra.length}個のファイルを削除しました`, 'warning');
     }
     state.deleteTarget = null;
+}
+
+function deleteSingleFile(filename) {
+    const proj = getProj();
+    if (!proj) return;
+    proj.files = proj.files.filter(f => f.name !== filename);
+    save();
+    if (state.currentFile === filename) {
+        proj.files.length > 0 ? switchFile(proj.files[0].name) : showEmptyState();
+    } else { renderTabs(); }
+    toast(`「${filename}」を削除しました`, 'warning');
 }
 
 // ===== EXPORT / IMPORT =====
 function exportProject() {
     const proj = getProj();
     if (!proj) return;
-
-    // Save current editor content
     if (state.monacoEditor && state.currentFile) {
         const file = proj.files.find(f => f.name === state.currentFile);
         if (file) file.content = state.monacoEditor.getValue();
     }
-
     const data = JSON.stringify(proj, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const a = document.createElement('a');
@@ -455,13 +544,13 @@ function importProject(file) {
         try {
             const proj = JSON.parse(e.target.result);
             if (!proj.id || !proj.name || !Array.isArray(proj.files)) throw new Error('Invalid format');
-            proj.id = genId(); // New ID to avoid collision
+            proj.id = genId();
             proj.createdAt = Date.now();
             state.projects.unshift(proj);
             save(); renderProjects();
             toast(`「${proj.name}」をインポートしました`);
         } catch {
-            toast('インポートに失敗しました。JSONファイルを確認してください', 'error');
+            toast('インポートに失敗しました', 'error');
         }
     };
     reader.readAsText(file);
@@ -471,20 +560,12 @@ function importProject(file) {
 function toggleDiff() {
     const proj = getProj();
     if (!proj || !state.currentFile) return;
-
     state.diffMode = !state.diffMode;
     const btn = document.getElementById('diff-toggle-btn');
-
     if (state.diffMode) {
-        const prev = state.prevFileContent[state.currentFile] || '';
-        const current = state.monacoEditor.getValue();
-
-        // Destroy normal editor, show diff
         state.monacoEditor.updateOptions({ readOnly: true });
         btn.querySelector('span').textContent = '編集に戻る';
         btn.style.background = 'var(--accent-dim)';
-
-        // Use inline diff via decorations (simplified)
         toast('差分表示モード (前回のAI生成との比較)', 'warning');
     } else {
         state.monacoEditor.updateOptions({ readOnly: false });
@@ -497,42 +578,31 @@ function toggleDiff() {
 function generateTerminalCommands() {
     const proj = getProj();
     if (!proj) return;
-
     const hasPy  = proj.files.some(f => f.name.endsWith('.py'));
     const hasJs  = proj.files.some(f => f.name.endsWith('.js') || f.name.endsWith('.ts'));
     const hasReq = proj.files.some(f => f.name === 'requirements.txt');
     const hasPkg = proj.files.some(f => f.name === 'package.json');
+    const hasHtml = proj.files.some(f => f.name.endsWith('.html'));
 
     const lines = [];
-
     if (hasPy) {
-        lines.push({ type: 'section', text: '=== Python Bot セットアップ ===' });
-        lines.push({ type: 'comment', text: '# 仮想環境を作成' });
+        lines.push({ type: 'section', text: '=== Python セットアップ ===' });
         lines.push({ type: 'cmd', prompt: '$', cmd: 'python -m venv venv' });
-        lines.push({ type: 'cmd', prompt: '$', cmd: 'source venv/bin/activate  # Windowsは: venv\\Scripts\\activate' });
-        if (hasReq) {
-            lines.push({ type: 'comment', text: '# 依存パッケージをインストール' });
-            lines.push({ type: 'cmd', prompt: '$', cmd: 'pip install -r requirements.txt' });
-        } else {
-            lines.push({ type: 'cmd', prompt: '$', cmd: 'pip install discord.py' });
-        }
-        lines.push({ type: 'comment', text: '# .envファイルにトークンを設定' });
-        lines.push({ type: 'cmd', prompt: '$', cmd: 'echo "DISCORD_TOKEN=あなたのトークン" > .env' });
-        lines.push({ type: 'comment', text: '# Botを起動' });
-        lines.push({ type: 'cmd', prompt: '$', cmd: 'python main.py' });
+        lines.push({ type: 'cmd', prompt: '$', cmd: 'source venv/bin/activate' });
+        if (hasReq) lines.push({ type: 'cmd', prompt: '$', cmd: 'pip install -r requirements.txt' });
+        const mainPy = proj.files.find(f => f.name === 'main.py') ? 'main.py' : proj.files.find(f => f.name.endsWith('.py'))?.name;
+        if (mainPy) lines.push({ type: 'cmd', prompt: '$', cmd: `python ${mainPy}` });
     }
-
     if (hasJs) {
-        lines.push({ type: 'section', text: '=== Node.js Bot セットアップ ===' });
-        if (hasPkg) {
-            lines.push({ type: 'cmd', prompt: '$', cmd: 'npm install' });
-        } else {
-            lines.push({ type: 'cmd', prompt: '$', cmd: 'npm install discord.js dotenv' });
-        }
-        lines.push({ type: 'cmd', prompt: '$', cmd: 'echo "DISCORD_TOKEN=あなたのトークン" > .env' });
-        lines.push({ type: 'cmd', prompt: '$', cmd: 'node index.js' });
+        lines.push({ type: 'section', text: '=== Node.js セットアップ ===' });
+        lines.push({ type: 'cmd', prompt: '$', cmd: hasPkg ? 'npm install' : 'npm init -y' });
+        const mainJs = proj.files.find(f => f.name === 'index.js') ? 'index.js' : proj.files.find(f => f.name.endsWith('.js'))?.name;
+        if (mainJs) lines.push({ type: 'cmd', prompt: '$', cmd: `node ${mainJs}` });
     }
-
+    if (hasHtml) {
+        lines.push({ type: 'section', text: '=== ローカルサーバー ===' });
+        lines.push({ type: 'cmd', prompt: '$', cmd: 'python -m http.server 8080' });
+    }
     if (lines.length === 0) {
         lines.push({ type: 'comment', text: '# コードが生成されると実行コマンドが表示されます' });
     }
@@ -625,7 +695,7 @@ function updateBadge() {
 }
 
 function updateSendBtn() {
-    document.getElementById('send-btn').disabled = !(state.activeProvider && state.activeModel);
+    document.getElementById('send-btn').disabled = !(state.activeProvider && state.activeModel) || state.isStreaming;
 }
 
 // ===== NOTIFICATION =====
@@ -657,11 +727,20 @@ function appendMsg(role, content, time, doSave = true) {
         if (proj) {
             if (!proj.chatHistory) proj.chatHistory = [];
             proj.chatHistory.push({ role, content, time: time || fmtTime(Date.now()) });
-            if (proj.chatHistory.length > 60) proj.chatHistory = proj.chatHistory.slice(-60);
+            if (proj.chatHistory.length > 80) proj.chatHistory = proj.chatHistory.slice(-80);
             save();
         }
     }
     return div;
+}
+
+function appendSystemMsg(text) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'chat-msg chat-msg--system';
+    div.innerHTML = `<div class="chat-bubble">${esc(text)}</div>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
 }
 
 function appendStreamingMsg() {
@@ -688,7 +767,7 @@ function finalizeStreamingMsg(bubble, content) {
     if (proj) {
         if (!proj.chatHistory) proj.chatHistory = [];
         proj.chatHistory.push({ role: 'assistant', content, time: fmtTime(Date.now()) });
-        if (proj.chatHistory.length > 60) proj.chatHistory = proj.chatHistory.slice(-60);
+        if (proj.chatHistory.length > 80) proj.chatHistory = proj.chatHistory.slice(-80);
         save();
     }
 }
@@ -714,7 +793,6 @@ function searchChat(query) {
     });
     if (query && found === 0) toast('見つかりませんでした', 'warning');
     else if (query) {
-        // Scroll to first match
         const first = document.querySelector('.chat-msg.highlight');
         if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
@@ -732,7 +810,7 @@ function setProg(step, pct) {
     });
     document.getElementById('progress-fill').style.width = pct + '%';
     document.getElementById('progress-text').textContent =
-        { 1: 'コードを生成中...', 2: 'バグチェック中...', 3: '最終確認中...' }[step] || '完了';
+        { 1: 'コードを生成中...', 2: 'バグを検証中...', 3: '最終確認中...' }[step] || '完了';
 }
 
 // ===== AI CALL (STREAMING) =====
@@ -746,13 +824,7 @@ async function callAIStream(messages, onChunk) {
     const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key.key}` },
-        body: JSON.stringify({
-            model: state.activeModel,
-            messages,
-            temperature: 0.2,
-            max_tokens: 8192,
-            stream: true,
-        }),
+        body: JSON.stringify({ model: state.activeModel, messages, temperature: 0.2, max_tokens: 8192, stream: true }),
     });
 
     if (!res.ok) {
@@ -761,9 +833,9 @@ async function callAIStream(messages, onChunk) {
         if (res.status === 401 || res.status === 403)
             showNotif('APIキーエラー', `「${key.name}」のAPIキーが無効または期限切れです。\n${errMsg}`, key.id);
         else if (res.status === 429)
-            showNotif('レート制限エラー', `「${key.name}」のAPIレート制限に達しました。\n${errMsg}`, key.id);
+            showNotif('レート制限', `「${key.name}」のレート制限に達しました。\n${errMsg}`, key.id);
         else if (res.status === 402)
-            showNotif('クレジット不足', `「${key.name}」のAPIクレジットが不足しています。\n${errMsg}`, key.id);
+            showNotif('クレジット不足', `「${key.name}」のクレジットが不足しています。\n${errMsg}`, key.id);
         throw new Error(errMsg);
     }
 
@@ -790,20 +862,16 @@ async function callAIStream(messages, onChunk) {
     return full;
 }
 
-// Non-streaming fallback
 async function callAI(messages) {
     const key = state.apiKeys.find(k => k.id === state.activeProvider);
     if (!key) throw new Error('APIキーが設定されていません。');
-
     const base = key.baseUrl.replace(/\/$/, '');
     const url  = base.endsWith('/chat/completions') ? base : base + '/chat/completions';
-
     const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key.key}` },
         body: JSON.stringify({ model: state.activeModel, messages, temperature: 0.2, max_tokens: 8192 }),
     });
-
     if (!res.ok) {
         const j = await res.json().catch(()=>({}));
         const errMsg = j?.error?.message || `HTTP ${res.status}`;
@@ -816,27 +884,33 @@ async function callAI(messages) {
 }
 
 // ===== SYSTEM PROMPT =====
-function buildSysPrompt() {
+function buildSysPrompt(isAutoIter = false, iterNum = 0, totalIter = 1, goal = '') {
     const proj = getProj();
     const filesStr = (proj?.files || []).filter(f => f.content).map(f => `=== ${f.name} ===\n${f.content}`).join('\n\n');
 
-    const base = `あなたはDiscordボット開発の専門家AIアシスタントです。
-ユーザーの要望に応じてDiscordボットのコードを生成・改善します。
+    const autoNote = isAutoIter ? `
+【自動反復モード】
+これは自動反復の ${iterNum}/${totalIter} 回目です。
+${goal ? `目標: ${goal}` : ''}
+前回の出力を批判的に見直し、バグ・エラーハンドリング・可読性を改善してください。
+コード全体を再出力してください。` : '';
 
+    const base = `あなたは優秀なソフトウェアエンジニアです。
+ユーザーの要望に応じてコードを生成・改善します。どんな言語やフレームワークにも対応します。
+${autoNote}
 【プロジェクト名】${proj?.name || '未設定'}
 
 【コード生成ルール】
-1. コードを出力する前に、必ず3回内部で見直してください（バグ・型エラー・論理エラー・インポート漏れを確認）
+1. コードを出力する前に、必ず内部で見直してください（バグ・型エラー・論理エラー・インポート漏れ）
 2. コードブロックの直前に必ず「ファイル: ファイル名」と記載してください
    例:
    ファイル: main.py
    \`\`\`python
    コード
    \`\`\`
-3. Python は discord.py (v2.x)、JavaScript は discord.js (v14) を使用
-4. 複数ファイルが必要な場合はすべて出力
-5. 既存ファイルがある場合はその内容を必ず考慮して整合性を保つ
-6. requirements.txt や .env.example が必要な場合は一緒に出力
+3. 複数ファイルが必要な場合はすべて出力してください
+4. 既存ファイルがある場合はその内容を必ず考慮して整合性を保ってください
+5. 設定ファイル（requirements.txt, package.json等）が必要な場合は一緒に出力してください
 
 【現在のファイル】
 ${filesStr || '(まだファイルはありません)'}
@@ -859,13 +933,47 @@ function parseFiles(text) {
     return files;
 }
 
-function applyFiles(parsedFiles) {
+// Returns a promise that resolves true (apply) or false (cancel)
+function checkDangerAndConfirm(parsedFiles) {
+    const allCode = parsedFiles.map(f => f.code).join('\n');
+    const dangers = detectDanger(allCode);
+    if (dangers.length === 0) return Promise.resolve(true);
+
+    return new Promise(resolve => {
+        document.getElementById('danger-confirm-detail').textContent =
+            '検出された要素:\n' + dangers.map(d => '- ' + d).join('\n');
+        openModal('danger-confirm-modal');
+
+        const onOk = () => {
+            closeModal('danger-confirm-modal');
+            cleanup();
+            resolve(true);
+        };
+        const onCancel = () => {
+            closeModal('danger-confirm-modal');
+            cleanup();
+            resolve(false);
+        };
+        const cleanup = () => {
+            document.getElementById('danger-confirm-ok').removeEventListener('click', onOk);
+            document.getElementById('danger-confirm-cancel').removeEventListener('click', onCancel);
+            document.getElementById('danger-confirm-close').removeEventListener('click', onCancel);
+        };
+        document.getElementById('danger-confirm-ok').addEventListener('click', onOk);
+        document.getElementById('danger-confirm-cancel').addEventListener('click', onCancel);
+        document.getElementById('danger-confirm-close').addEventListener('click', onCancel);
+    });
+}
+
+async function applyFiles(parsedFiles) {
     const proj = getProj();
     if (!proj || parsedFiles.length === 0) return;
 
+    const ok = await checkDangerAndConfirm(parsedFiles);
+    if (!ok) { toast('コードの適用をキャンセルしました', 'warning'); return; }
+
     parsedFiles.forEach(({ filename, code }) => {
         const name = filename || state.currentFile || 'main.py';
-        // Save previous content for diff
         const existing = proj.files.find(f => f.name === name);
         if (existing) {
             state.prevFileContent[name] = existing.content;
@@ -896,21 +1004,29 @@ async function sendMessage() {
     input.value = ''; input.style.height = '';
     appendMsg('user', text);
 
+    await runAI(text);
+}
+
+async function runAI(userText, isAutoIter = false, iterNum = 1, totalIter = 1, goal = '') {
     const proj = getProj();
     if (!proj) return;
 
-    const history = (proj.chatHistory || []).map(m => ({ role: m.role, content: m.content }));
-    const messages = [{ role: 'system', content: buildSysPrompt() }, ...history];
+    const history = (proj.chatHistory || []).slice(-20).map(m => ({ role: m.role, content: m.content }));
+    const sysPrompt = buildSysPrompt(isAutoIter, iterNum, totalIter, goal);
+    const messages = [{ role: 'system', content: sysPrompt }, ...history];
+    if (isAutoIter) {
+        // Add iteration instruction
+        messages.push({ role: 'user', content: `[自動反復 ${iterNum}/${totalIter}] ${goal || 'コードをさらに改善してください。バグを修正し、エラーハンドリングを強化してください。'}` });
+    }
 
     state.isStreaming = true;
-    document.getElementById('send-btn').disabled = true;
+    updateSendBtn();
     showProg(); setProg(1, 20);
 
     try {
         await delay(200);
         setProg(1, 50);
 
-        // Try streaming first
         let fullResponse = '';
         const streamBubble = appendStreamingMsg();
 
@@ -921,12 +1037,10 @@ async function sendMessage() {
                 setProg(2, 70);
             });
         } catch (streamErr) {
-            // Fallback to non-streaming if streaming not supported
             console.warn('Streaming failed, falling back:', streamErr.message);
             showTyping();
             fullResponse = await callAI(messages);
             hideTyping();
-            // Remove streaming bubble
             document.getElementById('streaming-msg')?.remove();
         }
 
@@ -937,30 +1051,95 @@ async function sendMessage() {
 
         const files = parseFiles(fullResponse);
         if (files.length > 0) {
-            applyFiles(files);
-            toast(`${files.length}個のファイルを更新しました`);
+            await applyFiles(files);
+            if (!isAutoIter) toast(`${files.length}個のファイルを更新しました`);
         }
 
+        return fullResponse;
     } catch (err) {
         hideTyping();
         hideProg();
         document.getElementById('streaming-msg')?.remove();
-        appendMsg('assistant', `エラーが発生しました:\n${err.message}\n\n設定からAPIキーとモデル名を確認してください。`);
+        appendMsg('assistant', `エラーが発生しました:\n${err.message}`);
         toast(err.message, 'error');
+        throw err;
     } finally {
         state.isStreaming = false;
         updateSendBtn();
     }
 }
 
+// ===== AUTO ITERATION MODE =====
+function openAutoModeModal() {
+    openModal('auto-mode-modal');
+}
+
+async function startAutoMode() {
+    const totalIter = parseInt(document.getElementById('auto-iter-slider').value) || 3;
+    const goal = document.getElementById('auto-goal-input').value.trim();
+    closeModal('auto-mode-modal');
+
+    if (!state.activeProvider || !state.activeModel) {
+        toast('設定からAPIキーとモデルを登録してください', 'error');
+        return;
+    }
+
+    state.autoMode.running = true;
+    state.autoMode.totalIter = totalIter;
+    state.autoMode.currentIter = 0;
+    state.autoMode.goal = goal;
+    state.autoMode.stopRequested = false;
+
+    // Show auto mode bar
+    document.getElementById('auto-mode-bar').classList.remove('hidden');
+    document.getElementById('auto-iter-total').textContent = totalIter;
+    document.getElementById('chat-input').disabled = true;
+
+    appendSystemMsg(`自動反復モード開始 — ${totalIter}回の思考を行います${goal ? '。目標: ' + goal : ''}`);
+
+    try {
+        for (let i = 1; i <= totalIter; i++) {
+            if (state.autoMode.stopRequested) break;
+
+            state.autoMode.currentIter = i;
+            document.getElementById('auto-iter-current').textContent = i;
+            document.getElementById('auto-mode-label').textContent = `第${i}回 思考中...`;
+
+            appendSystemMsg(`[ 思考 ${i}/${totalIter} ] 改善中...`);
+
+            await runAI('', true, i, totalIter, goal);
+
+            if (i < totalIter && !state.autoMode.stopRequested) {
+                await delay(800);
+            }
+        }
+    } catch (err) {
+        console.error('Auto mode error:', err);
+    } finally {
+        state.autoMode.running = false;
+        document.getElementById('auto-mode-bar').classList.add('hidden');
+        document.getElementById('chat-input').disabled = false;
+        const stopped = state.autoMode.stopRequested;
+        const done = state.autoMode.currentIter;
+        appendSystemMsg(stopped
+            ? `自動反復を停止しました (${done}/${totalIter}回完了)`
+            : `自動反復が完了しました (${totalIter}回の思考を実行)`
+        );
+        if (!stopped) toast(`自動反復完了 — ${totalIter}回の改善を実施しました`);
+    }
+}
+
+function stopAutoMode() {
+    state.autoMode.stopRequested = true;
+    document.getElementById('auto-mode-label').textContent = '停止中...';
+}
+
 // ===== COPY CODE =====
 function copyCode() {
     const proj = getProj();
     if (!proj || !state.currentFile) return;
-    // Get current editor content
     const content = state.monacoEditor ? state.monacoEditor.getValue() : (proj.files.find(f => f.name === state.currentFile)?.content || '');
     if (!content) return;
-
     navigator.clipboard.writeText(content).then(() => {
         toast('コードをコピーしました');
     }).catch(() => {
@@ -996,7 +1175,14 @@ function initShortcuts() {
     document.addEventListener('keydown', e => {
         if (e.ctrlKey || e.metaKey) {
             if (e.key === 'h' || e.key === 'H') { e.preventDefault(); document.getElementById('home-btn')?.click(); }
-            if (e.key === 's' || e.key === 'S') { e.preventDefault(); const proj = getProj(); if (proj && state.monacoEditor && state.currentFile) { const f = proj.files.find(f=>f.name===state.currentFile); if(f){f.content=state.monacoEditor.getValue();save();toast('保存しました');} } }
+            if (e.key === 's' || e.key === 'S') {
+                e.preventDefault();
+                const proj = getProj();
+                if (proj && state.monacoEditor && state.currentFile) {
+                    const f = proj.files.find(f => f.name === state.currentFile);
+                    if (f) { f.content = state.monacoEditor.getValue(); save(); toast('保存しました'); }
+                }
+            }
         }
     });
 
@@ -1010,10 +1196,11 @@ function initModalTabs() {
     document.querySelectorAll('.modal-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const tabId = tab.dataset.tab;
-            document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
+            const modal = tab.closest('.modal');
+            modal.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+            modal.querySelectorAll('.modal-tab-content').forEach(c => c.classList.remove('active'));
             tab.classList.add('active');
-            document.querySelector(`.modal-tab-content[data-tab="${tabId}"]`).classList.add('active');
+            modal.querySelector(`.modal-tab-content[data-tab="${tabId}"]`).classList.add('active');
         });
     });
 }
@@ -1030,8 +1217,12 @@ async function init() {
     initShortcuts();
     initModalTabs();
 
-    // Init Monaco
     await initMonaco();
+
+    // Auto-iter slider
+    const slider = document.getElementById('auto-iter-slider');
+    const display = document.getElementById('auto-iter-display');
+    slider.addEventListener('input', () => { display.textContent = slider.value; });
 
     // Home
     document.getElementById('new-project-btn').addEventListener('click', () => {
@@ -1043,8 +1234,6 @@ async function init() {
     document.getElementById('theme-btn-editor').addEventListener('click', toggleTheme);
     document.getElementById('import-project-btn').addEventListener('click', () => document.getElementById('import-file-input').click());
     document.getElementById('import-file-input').addEventListener('change', e => { if (e.target.files[0]) importProject(e.target.files[0]); e.target.value = ''; });
-
-    // Project search
     document.getElementById('project-search').addEventListener('input', e => renderProjects(e.target.value));
 
     // New Project
@@ -1092,19 +1281,32 @@ async function init() {
         if (!proj) return;
         proj.chatHistory = []; save();
         const chatEl = document.getElementById('chat-messages');
-        chatEl.innerHTML = `<div class="welcome-message"><div class="welcome-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="m2 14 6-6"/><path d="m14 20 8-8"/></svg></div><p class="welcome-text">作りたいDiscordボットの内容を教えてください。</p><p class="welcome-hint">例: 音楽再生機能のあるBotを作って</p></div>`;
+        chatEl.innerHTML = `<div class="welcome-message"><div class="welcome-icon"><svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div><p class="welcome-text">作りたいものを教えてください。</p><p class="welcome-hint">AIがコードを生成・改善します</p></div>`;
         toast('チャット履歴をクリアしました', 'warning');
     });
 
+    // Auto mode
+    document.getElementById('auto-mode-btn').addEventListener('click', openAutoModeModal);
+    document.getElementById('auto-mode-close').addEventListener('click', () => closeModal('auto-mode-modal'));
+    document.getElementById('auto-mode-cancel').addEventListener('click', () => closeModal('auto-mode-modal'));
+    document.getElementById('auto-mode-start').addEventListener('click', startAutoMode);
+    document.getElementById('auto-mode-stop-btn').addEventListener('click', stopAutoMode);
+
     // Add File
     document.getElementById('add-tab-btn').addEventListener('click', () => { document.getElementById('add-file-input').value = ''; openModal('add-file-modal'); });
-    document.getElementById('add-file-close').addEventListener('click',  () => closeModal('add-file-modal'));
+    document.getElementById('add-file-close').addEventListener('click', () => closeModal('add-file-modal'));
     document.getElementById('add-file-cancel').addEventListener('click', () => closeModal('add-file-modal'));
     document.getElementById('add-file-create').addEventListener('click', () => { const n = document.getElementById('add-file-input').value.trim(); if(n){addFile(n);closeModal('add-file-modal');} });
     document.getElementById('add-file-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('add-file-create').click(); });
 
+    // Cleanup Tabs
+    document.getElementById('cleanup-tabs-btn').addEventListener('click', openCleanupModal);
+    document.getElementById('cleanup-close').addEventListener('click', () => closeModal('cleanup-modal'));
+    document.getElementById('cleanup-cancel').addEventListener('click', () => closeModal('cleanup-modal'));
+    document.getElementById('cleanup-delete-selected').addEventListener('click', executeCleanup);
+
     // Rename File
-    document.getElementById('rename-file-close').addEventListener('click',  () => closeModal('rename-file-modal'));
+    document.getElementById('rename-file-close').addEventListener('click', () => closeModal('rename-file-modal'));
     document.getElementById('rename-file-cancel').addEventListener('click', () => closeModal('rename-file-modal'));
     document.getElementById('rename-file-save').addEventListener('click', () => {
         const newName = document.getElementById('rename-file-input').value.trim();
@@ -1113,12 +1315,12 @@ async function init() {
     document.getElementById('rename-file-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('rename-file-save').click(); });
 
     // Delete Confirm
-    document.getElementById('delete-confirm-close').addEventListener('click',  () => closeModal('delete-confirm-modal'));
+    document.getElementById('delete-confirm-close').addEventListener('click', () => closeModal('delete-confirm-modal'));
     document.getElementById('delete-confirm-cancel').addEventListener('click', () => closeModal('delete-confirm-modal'));
     document.getElementById('delete-confirm-ok').addEventListener('click', () => { executeDelete(); closeModal('delete-confirm-modal'); });
 
     // Settings
-    document.getElementById('settings-close').addEventListener('click',  () => closeModal('settings-modal'));
+    document.getElementById('settings-close').addEventListener('click', () => closeModal('settings-modal'));
     document.getElementById('settings-cancel').addEventListener('click', () => closeModal('settings-modal'));
     document.getElementById('settings-save').addEventListener('click', saveSettings);
     document.getElementById('add-api-key-btn').addEventListener('click', () => {
@@ -1135,7 +1337,6 @@ async function init() {
         btn.addEventListener('click', () => {
             const url = btn.dataset.url;
             const model = btn.dataset.model;
-            // Find or create matching API key
             let key = state.apiKeys.find(k => k.baseUrl === url);
             if (!key) {
                 key = { id: genId(), name: new URL(url).hostname.split('.')[1] || url, baseUrl: url, key: '' };
@@ -1145,7 +1346,6 @@ async function init() {
             state.activeModel = model;
             renderApiKeysList();
             renderProviderSelect();
-            // Switch to AI tab
             document.querySelector('.modal-tab[data-tab="ai"]').click();
             toast(`${model} を選択しました。APIキーを入力してください`);
         });
