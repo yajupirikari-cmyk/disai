@@ -2,6 +2,67 @@
 // AI Code Builder - app.js
 // ============================================================
 
+// ===== INDEXEDDB STORAGE LAYER =====
+// Replaces localStorage as primary store (no 5MB limit, safer against
+// accidental data loss). localStorage is kept only as a migration source
+// and as an emergency last-resort mirror for small critical settings.
+const IDB_NAME = 'acb_db';
+const IDB_VERSION = 1;
+const IDB_STORE = 'kv';
+let _idbInstance = null;
+
+function idbOpen() {
+    return new Promise((resolve, reject) => {
+        if (_idbInstance) { resolve(_idbInstance); return; }
+        if (!window.indexedDB) { reject(new Error('IndexedDB not supported')); return; }
+        const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(IDB_STORE)) {
+                db.createObjectStore(IDB_STORE);
+            }
+        };
+        req.onsuccess = () => { _idbInstance = req.result; resolve(_idbInstance); };
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function idbSet(key, value) {
+    try {
+        const db = await idbOpen();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readwrite');
+            tx.objectStore(IDB_STORE).put(value, key);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) { console.error('idbSet failed:', e); return false; }
+}
+
+async function idbGet(key) {
+    try {
+        const db = await idbOpen();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readonly');
+            const req = tx.objectStore(IDB_STORE).get(key);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (e) { console.error('idbGet failed:', e); return undefined; }
+}
+
+async function idbGetAllKeys() {
+    try {
+        const db = await idbOpen();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(IDB_STORE, 'readonly');
+            const req = tx.objectStore(IDB_STORE).getAllKeys();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (e) { return []; }
+}
+
 // ===== TEMPLATES =====
 const TEMPLATES = [
     {
@@ -163,9 +224,17 @@ const state = {
 };
 
 // ===== PERSISTENCE =====
+// Debounced IndexedDB save — coalesces rapid edits into one write.
+let _saveTimer = null;
+let _saveInFlight = false;
+let _lastSavedAt = null;
+
 function save() {
+    // Update localStorage mirror synchronously for small, critical settings
+    // only (cheap, and lets us recover provider/model instantly even if
+    // IndexedDB is unavailable). Project data is NOT mirrored here — it's
+    // too large and is the whole reason we moved to IndexedDB.
     try {
-        localStorage.setItem('acb_projects', JSON.stringify(state.projects));
         localStorage.setItem('acb_apiKeys', JSON.stringify(state.apiKeys));
         localStorage.setItem('acb_activeProvider', state.activeProvider || '');
         localStorage.setItem('acb_activeModel', state.activeModel || '');
@@ -173,23 +242,137 @@ function save() {
         localStorage.setItem('acb_theme', state.theme || 'dark');
         localStorage.setItem('acb_maxMode', state.maxMode ? '1' : '0');
         localStorage.setItem('acb_lastTpl', state.lastUsedTemplate || '');
-    } catch(e) { console.error('Save error:', e); }
+    } catch (e) { console.warn('localStorage mirror failed (non-critical):', e); }
+
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(flushSaveToIDB, 400);
 }
 
-function load() {
+async function flushSaveToIDB() {
+    if (_saveInFlight) { clearTimeout(_saveTimer); _saveTimer = setTimeout(flushSaveToIDB, 200); return; }
+    _saveInFlight = true;
     try {
-        // Try new key, fallback to old key for migration
-        state.projects     = JSON.parse(localStorage.getItem('acb_projects') || localStorage.getItem('dbb_projects')) || [];
-        state.apiKeys      = JSON.parse(localStorage.getItem('acb_apiKeys') || localStorage.getItem('dbb_apiKeys')) || [];
-        state.activeProvider = localStorage.getItem('acb_activeProvider') || localStorage.getItem('dbb_activeProvider') || null;
-        state.activeModel  = localStorage.getItem('acb_activeModel') || localStorage.getItem('dbb_activeModel') || '';
-        state.customPrompt = localStorage.getItem('acb_customPrompt') || localStorage.getItem('dbb_customPrompt') || '';
-        state.theme        = localStorage.getItem('acb_theme') || localStorage.getItem('dbb_theme') || 'dark';
-        state.maxMode      = localStorage.getItem('acb_maxMode') === '1';
-        state.lastUsedTemplate = localStorage.getItem('acb_lastTpl') || null;
-    } catch(e) {
+        await idbSet('projects', state.projects);
+        await idbSet('apiKeys', state.apiKeys);
+        await idbSet('settings', {
+            activeProvider: state.activeProvider,
+            activeModel: state.activeModel,
+            customPrompt: state.customPrompt,
+            theme: state.theme,
+            maxMode: state.maxMode,
+            lastUsedTemplate: state.lastUsedTemplate,
+        });
+        _lastSavedAt = Date.now();
+        updateSaveIndicator(true);
+    } catch (e) {
+        console.error('IndexedDB save failed:', e);
+        updateSaveIndicator(false);
+        toast('保存に失敗しました。ストレージ容量を確認してください', 'error', 4000);
+    } finally {
+        _saveInFlight = false;
+    }
+}
+
+function updateSaveIndicator(ok) {
+    const el = document.getElementById('save-indicator');
+    if (!el) return;
+    if (ok) {
+        el.textContent = `保存済み ${fmtTime(_lastSavedAt)}`;
+        el.classList.remove('save-indicator-error');
+    } else {
+        el.textContent = '保存失敗';
+        el.classList.add('save-indicator-error');
+    }
+}
+
+async function load() {
+    try {
+        let projects = await idbGet('projects');
+        let apiKeys  = await idbGet('apiKeys');
+        let settings = await idbGet('settings');
+
+        // ---- One-time migration from localStorage (old versions) ----
+        if (projects === undefined) {
+            const lsProjects = localStorage.getItem('acb_projects') || localStorage.getItem('dbb_projects');
+            if (lsProjects) {
+                try { projects = JSON.parse(lsProjects); } catch { projects = []; }
+                console.info('Migrated projects from localStorage to IndexedDB');
+            }
+        }
+        if (apiKeys === undefined) {
+            const lsKeys = localStorage.getItem('acb_apiKeys') || localStorage.getItem('dbb_apiKeys');
+            if (lsKeys) { try { apiKeys = JSON.parse(lsKeys); } catch { apiKeys = []; } }
+        }
+
+        state.projects = Array.isArray(projects) ? projects : [];
+        state.apiKeys  = Array.isArray(apiKeys) ? apiKeys : [];
+
+        if (settings) {
+            state.activeProvider   = settings.activeProvider || null;
+            state.activeModel      = settings.activeModel || '';
+            state.customPrompt     = settings.customPrompt || '';
+            state.theme            = settings.theme || 'dark';
+            state.maxMode          = !!settings.maxMode;
+            state.lastUsedTemplate = settings.lastUsedTemplate || null;
+        } else {
+            state.activeProvider = localStorage.getItem('acb_activeProvider') || localStorage.getItem('dbb_activeProvider') || null;
+            state.activeModel    = localStorage.getItem('acb_activeModel') || localStorage.getItem('dbb_activeModel') || '';
+            state.customPrompt   = localStorage.getItem('acb_customPrompt') || localStorage.getItem('dbb_customPrompt') || '';
+            state.theme          = localStorage.getItem('acb_theme') || localStorage.getItem('dbb_theme') || 'dark';
+            state.maxMode        = localStorage.getItem('acb_maxMode') === '1';
+            state.lastUsedTemplate = localStorage.getItem('acb_lastTpl') || null;
+        }
+
+        // If we migrated anything from localStorage, persist immediately to IDB
+        if (projects !== undefined || apiKeys !== undefined) {
+            await flushSaveToIDB();
+        }
+    } catch (e) {
+        console.error('Load failed, falling back to empty state:', e);
         state.projects = []; state.apiKeys = [];
     }
+}
+
+// ===== AUTO BACKUP (snapshot history, protects against corruption) =====
+const MAX_BACKUPS = 5;
+const BACKUP_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes while active
+
+async function createAutoBackup() {
+    try {
+        if (!state.projects || state.projects.length === 0) return;
+        const snapshot = {
+            ts: Date.now(),
+            projects: state.projects,
+            apiKeys: state.apiKeys.map(k => ({ ...k, key: k.key ? '***' : '' })), // never back up raw keys
+        };
+        let backups = await idbGet('backups');
+        if (!Array.isArray(backups)) backups = [];
+        backups.unshift(snapshot);
+        backups = backups.slice(0, MAX_BACKUPS);
+        await idbSet('backups', backups);
+    } catch (e) { console.warn('Auto backup failed:', e); }
+}
+
+async function listBackups() {
+    const backups = await idbGet('backups');
+    return Array.isArray(backups) ? backups : [];
+}
+
+async function restoreBackup(ts) {
+    const backups = await listBackups();
+    const snap = backups.find(b => b.ts === ts);
+    if (!snap) { toast('バックアップが見つかりません', 'error'); return; }
+    state.projects = snap.projects;
+    await flushSaveToIDB();
+    renderProjects();
+    toast(`${new Date(ts).toLocaleString('ja-JP')} の状態に復元しました`, 'warning', 4000);
+}
+
+function initAutoBackup() {
+    createAutoBackup();
+    setInterval(createAutoBackup, BACKUP_INTERVAL_MS);
+    // Also snapshot right before the tab closes/refreshes
+    window.addEventListener('beforeunload', () => { createAutoBackup(); });
 }
 
 // ===== UTILS =====
@@ -291,6 +474,22 @@ function initMonaco() {
             if (!proj || !state.currentFile) return;
             const file = proj.files.find(f => f.name === state.currentFile);
             if (file) { file.content = state.monacoEditor.getValue(); save(); }
+            // Update lint badges after content change (debounced)
+            clearTimeout(state._lintTimer);
+            state._lintTimer = setTimeout(updateLintBadges, 800);
+        });
+
+        // Track cursor position in status bar
+        state.monacoEditor.onDidChangeCursorPosition(e => {
+            const pos = e.position;
+            const el = document.getElementById('status-pos');
+            if (el) el.textContent = `行 ${pos.lineNumber}, 列 ${pos.column}`;
+        });
+
+        // Listen for marker changes (Monaco diagnostics)
+        monaco.editor.onDidChangeMarkers(() => {
+            clearTimeout(state._lintTimer);
+            state._lintTimer = setTimeout(updateLintBadges, 300);
         });
 
         resolve();
@@ -390,6 +589,8 @@ function openProject(id) {
 
     state.diffMode = false;
     state.prevFileContent = {};
+    state.lastApplySnapshot = null;
+    if (_lastSavedAt) updateSaveIndicator(true);
 
     if (proj.files.length > 0) {
         state.currentFile = proj.files[0].name;
@@ -412,6 +613,14 @@ function showEditorForFile(file) {
     document.getElementById('current-file-name').textContent = file.name;
     setEditorContent(file.content, file.name);
     generateTerminalCommands();
+    // Status bar
+    const sb = document.getElementById('editor-status-bar');
+    if (sb) {
+        sb.classList.remove('hidden');
+        const langEl = document.getElementById('status-lang');
+        if (langEl) langEl.textContent = getLang(file.name);
+    }
+    setTimeout(updateLintBadges, 500);
 }
 
 function showEmptyState() {
@@ -621,6 +830,75 @@ function exportProject() {
     toast(`「${proj.name}」をエクスポートしました`);
 }
 
+// ===== ZIP DOWNLOAD =====
+async function downloadProjectZip() {
+    const proj = getProj();
+    if (!proj) return;
+
+    // Save current editor content first
+    if (state.monacoEditor && state.currentFile) {
+        const file = proj.files.find(f => f.name === state.currentFile);
+        if (file) file.content = state.monacoEditor.getValue();
+    }
+
+    if (proj.files.length === 0) { toast('ファイルがありません', 'warning'); return; }
+
+    // Build ZIP using JSZip (loaded dynamically if needed)
+    try {
+        const JSZip = await loadJSZip();
+        const zip = new JSZip();
+        const folderName = proj.name.replace(/\s+/g, '_').replace(/[^\w\-_.]/g, '') || 'project';
+        const folder = zip.folder(folderName);
+
+        proj.files.forEach(file => {
+            folder.file(file.name, file.content || '');
+        });
+
+        // Add README with run instructions if not present
+        if (!proj.files.find(f => f.name === 'README.md')) {
+            const hasPy = proj.files.some(f => f.name.endsWith('.py'));
+            const hasJs = proj.files.some(f => f.name.endsWith('.js'));
+            const readmeContent = [
+                `# ${proj.name}`,
+                '',
+                '## セットアップ',
+                hasPy ? '```bash\npip install -r requirements.txt\npython main.py\n```' : '',
+                hasJs ? '```bash\nnpm install\nnode index.js\n```' : '',
+                '',
+                `生成日: ${new Date().toLocaleDateString('ja-JP')}`,
+            ].join('\n');
+            folder.file('README.md', readmeContent);
+        }
+
+        const blob = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 },
+        });
+
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${folderName}.zip`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        toast(`「${proj.name}」をZIPでダウンロードしました (${proj.files.length}ファイル)`);
+    } catch (err) {
+        console.error(err);
+        toast('ZIPの生成に失敗しました: ' + err.message, 'error');
+    }
+}
+
+function loadJSZip() {
+    return new Promise((resolve, reject) => {
+        if (window.JSZip) { resolve(window.JSZip); return; }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        script.onload = () => resolve(window.JSZip);
+        script.onerror = () => reject(new Error('JSZipの読み込みに失敗しました'));
+        document.head.appendChild(script);
+    });
+}
+
 function importProject(file) {
     const reader = new FileReader();
     reader.onload = e => {
@@ -701,11 +979,82 @@ function generateTerminalCommands() {
 }
 
 // ===== SETTINGS =====
-function openSettings() {
+async function openSettings() {
     renderApiKeysList();
     renderProviderSelect();
     document.getElementById('custom-prompt-input').value = state.customPrompt || '';
     openModal('settings-modal');
+    await renderUsageTab();
+    await renderDataTab();
+}
+
+async function renderUsageTab() {
+    const usage = await getTodayUsage();
+    const settings = await idbGet('settings');
+    const limit = (settings && settings.usageLimit) || 0;
+
+    document.getElementById('usage-limit-input').value = limit || '';
+
+    const totalToday = usage.prompt + usage.completion;
+    const overLimit = limit > 0 && totalToday >= limit;
+
+    const grid = document.getElementById('usage-stats-grid');
+    grid.innerHTML = `
+        <div class="usage-stat-card ${overLimit ? 'over-limit' : ''}">
+            <div class="usage-stat-value">${totalToday.toLocaleString()}</div>
+            <div class="usage-stat-label">本日の推定トークン</div>
+        </div>
+        <div class="usage-stat-card">
+            <div class="usage-stat-value">${usage.requests.toLocaleString()}</div>
+            <div class="usage-stat-label">本日のリクエスト数</div>
+        </div>
+        <div class="usage-stat-card">
+            <div class="usage-stat-value">${usage.prompt.toLocaleString()} / ${usage.completion.toLocaleString()}</div>
+            <div class="usage-stat-label">入力 / 出力</div>
+        </div>`;
+}
+
+async function renderDataTab() {
+    const backups = await listBackups();
+    const list = document.getElementById('backup-list');
+
+    if (backups.length === 0) {
+        list.innerHTML = '<p class="section-desc">まだバックアップがありません（5分ごとに自動作成されます）</p>';
+    } else {
+        list.innerHTML = backups.map(b => `
+            <div class="backup-item">
+                <div class="backup-item-info">
+                    <span class="backup-item-time">${new Date(b.ts).toLocaleString('ja-JP')}</span>
+                    <span class="backup-item-meta">${b.projects.length} プロジェクト</span>
+                </div>
+                <button class="backup-item-restore" data-ts="${b.ts}">復元</button>
+            </div>`).join('');
+
+        list.querySelectorAll('.backup-item-restore').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('現在のデータをこのバックアップ時点の状態に上書きします。よろしいですか？')) return;
+                await restoreBackup(parseInt(btn.dataset.ts));
+                closeModal('settings-modal');
+            });
+        });
+    }
+
+    // Storage usage estimate
+    const infoEl = document.getElementById('storage-info');
+    try {
+        if (navigator.storage && navigator.storage.estimate) {
+            const est = await navigator.storage.estimate();
+            const usedMB = ((est.usage || 0) / 1024 / 1024).toFixed(1);
+            const quotaMB = ((est.quota || 0) / 1024 / 1024).toFixed(0);
+            infoEl.innerHTML = `<b>ストレージ使用量:</b> ${usedMB} MB / ${quotaMB} MB&nbsp;&nbsp;`
+                + `<b>プロジェクト数:</b> ${state.projects.length}件&nbsp;&nbsp;`
+                + `<b>最終保存:</b> ${_lastSavedAt ? fmtTime(_lastSavedAt) : '未保存'}`;
+        } else {
+            infoEl.innerHTML = `<b>プロジェクト数:</b> ${state.projects.length}件`;
+        }
+    } catch {
+        infoEl.innerHTML = `<b>プロジェクト数:</b> ${state.projects.length}件`;
+    }
 }
 
 function renderApiKeysList() {
@@ -757,11 +1106,21 @@ function renderProviderSelect() {
     document.getElementById('active-model-input').value = state.activeModel || '';
 }
 
-function saveSettings() {
+async function saveSettings() {
     state.activeProvider = document.getElementById('active-provider-select').value || null;
     state.activeModel    = document.getElementById('active-model-input').value.trim();
     state.customPrompt   = document.getElementById('custom-prompt-input').value.trim();
     save(); updateBadge(); updateSendBtn();
+
+    // Usage limit is stored directly in settings (not part of the debounced
+    // `state` mirror) so we update it via the settings object explicitly.
+    const limitVal = parseInt(document.getElementById('usage-limit-input').value, 10);
+    try {
+        const settings = (await idbGet('settings')) || {};
+        settings.usageLimit = isNaN(limitVal) ? 0 : limitVal;
+        await idbSet('settings', settings);
+    } catch (e) { console.warn('Failed to save usage limit:', e); }
+
     closeModal('settings-modal');
     toast('設定を保存しました');
 }
@@ -911,6 +1270,63 @@ function setProg(step, pct) {
 }
 
 // ===== AI CALL (STREAMING) =====
+// ===== USAGE / COST TRACKING (best-effort, estimated) =====
+// Token counts from streaming APIs aren't always available, so we estimate
+// using a simple chars/4 heuristic when an explicit `usage` object isn't
+// returned. This is intentionally approximate — good enough for a warning
+// threshold, not for billing reconciliation.
+function estimateTokens(text) {
+    return Math.ceil((text || '').length / 4);
+}
+
+function todayKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function recordUsage(promptTokens, completionTokens) {
+    try {
+        let usage = await idbGet('usage');
+        if (!usage || typeof usage !== 'object') usage = {};
+        const key = todayKey();
+        if (!usage[key]) usage[key] = { prompt: 0, completion: 0, requests: 0 };
+        usage[key].prompt += promptTokens;
+        usage[key].completion += completionTokens;
+        usage[key].requests += 1;
+
+        // Keep only the last 14 days to avoid unbounded growth
+        const keys = Object.keys(usage).sort();
+        if (keys.length > 14) {
+            keys.slice(0, keys.length - 14).forEach(k => delete usage[k]);
+        }
+
+        await idbSet('usage', usage);
+        checkUsageLimit(usage[key]);
+        return usage[key];
+    } catch (e) { console.warn('recordUsage failed:', e); }
+}
+
+async function getTodayUsage() {
+    const usage = await idbGet('usage');
+    const key = todayKey();
+    return (usage && usage[key]) || { prompt: 0, completion: 0, requests: 0 };
+}
+
+async function getUsageLimit() {
+    const settings = await idbGet('settings');
+    return (settings && settings.usageLimit) || 0;
+}
+
+async function checkUsageLimit(todayUsage) {
+    const limit = await getUsageLimit();
+    if (!limit || limit <= 0) return;
+    const total = todayUsage.prompt + todayUsage.completion;
+    if (total >= limit && !state._usageWarningShownToday) {
+        state._usageWarningShownToday = true;
+        toast(`本日の推定トークン使用量が上限(${limit.toLocaleString()})を超えました`, 'warning', 5000);
+    }
+}
+
 async function callAIStream(messages, onChunk) {
     const key = state.apiKeys.find(k => k.id === state.activeProvider);
     if (!key) throw new Error('APIキーが設定されていません。設定から登録してください。');
@@ -946,6 +1362,8 @@ async function callAIStream(messages, onChunk) {
     const decoder = new TextDecoder();
     let full = '';
 
+    let usageObj = null;
+
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -959,9 +1377,16 @@ async function callAIStream(messages, onChunk) {
                 const j = JSON.parse(data);
                 const delta = j.choices?.[0]?.delta?.content || '';
                 if (delta) { full += delta; onChunk(full); }
+                if (j.usage) usageObj = j.usage; // some providers send usage on final chunk
             } catch {}
         }
     }
+
+    // Record usage — use provider-reported usage if available, otherwise estimate.
+    const promptTokens = usageObj?.prompt_tokens ?? estimateTokens(messages.map(m => m.content).join('\n'));
+    const completionTokens = usageObj?.completion_tokens ?? estimateTokens(full);
+    recordUsage(promptTokens, completionTokens);
+
     return full;
 }
 
@@ -983,7 +1408,13 @@ async function callAI(messages) {
         throw new Error(errMsg);
     }
     const data = await res.json();
-    return data.choices?.[0]?.message?.content || '';
+    const content = data.choices?.[0]?.message?.content || '';
+
+    const promptTokens = data.usage?.prompt_tokens ?? estimateTokens(messages.map(m => m.content).join('\n'));
+    const completionTokens = data.usage?.completion_tokens ?? estimateTokens(content);
+    recordUsage(promptTokens, completionTokens);
+
+    return content;
 }
 
 // ===== SYSTEM PROMPT =====
@@ -1047,6 +1478,10 @@ ${maxNote}
 3. 複数ファイルが必要な場合はすべて出力してください
 4. 既存ファイルがある場合はその内容を必ず考慮して整合性を保ってください
 5. 設定ファイル（requirements.txt, package.json等）が必要な場合は一緒に出力してください
+6. 【必須】不要になったファイルは毎回必ず削除してください。削除するファイルは以下の形式で明示してください:
+   DELETE: 削除するファイル名
+   例: DELETE: old_utils.py
+   リファクタリングや統合でファイルが不要になった場合も必ず削除指示を出してください。
 
 【現在のファイル】
 ${filesStr || '(まだファイルはありません)'}
@@ -1122,6 +1557,18 @@ function parseFiles(text) {
     return files;
 }
 
+function parseDeleteFiles(text) {
+    // Parse "DELETE: filename" lines from AI response
+    const toDelete = [];
+    const re = /^DELETE:\s*(\S+)/gm;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const name = m[1].trim();
+        if (name) toDelete.push(name);
+    }
+    return toDelete;
+}
+
 // Returns a promise that resolves true (apply) or false (cancel)
 function checkDangerAndConfirm(parsedFiles) {
     const allCode = parsedFiles.map(f => f.code).join('\n');
@@ -1154,13 +1601,170 @@ function checkDangerAndConfirm(parsedFiles) {
     });
 }
 
-async function applyFiles(parsedFiles) {
+// ===== SYNTAX VALIDATION (best-effort, catches obvious AI mistakes) =====
+function getFileSyntaxLang(filename) {
+    const ext = (filename || '').split('.').pop().toLowerCase();
+    if (ext === 'py') return 'python';
+    if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) return 'javascript';
+    if (ext === 'json') return 'json';
+    return null;
+}
+
+// Bracket/paren/brace balance check — language agnostic, catches truncated
+// or malformed code blocks regardless of language.
+function checkBracketBalance(code) {
+    const pairs = { '(': ')', '[': ']', '{': '}' };
+    const closers = { ')': '(', ']': '[', '}': '{' };
+    const stack = [];
+    let inString = null;   // ' " ` or null
+    let inComment = false; // single-line # or //
+    const lines = code.split('\n');
+
+    for (let li = 0; li < lines.length; li++) {
+        const line = lines[li];
+        inComment = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            const prev = line[i - 1];
+            if (inComment) continue;
+            if (inString) {
+                if (ch === inString && prev !== '\\') inString = null;
+                continue;
+            }
+            if (ch === '"' || ch === "'" || ch === '`') { inString = ch; continue; }
+            if (ch === '#') { inComment = true; continue; }
+            if (ch === '/' && line[i + 1] === '/') { inComment = true; continue; }
+            if (pairs[ch]) stack.push({ ch, line: li + 1 });
+            else if (closers[ch]) {
+                const top = stack.pop();
+                if (!top || top.ch !== closers[ch]) {
+                    return { ok: false, reason: `${li + 1}行目: 「${ch}」に対応する開き括弧が見つかりません` };
+                }
+            }
+        }
+    }
+    if (stack.length > 0) {
+        const unclosed = stack[stack.length - 1];
+        return { ok: false, reason: `${unclosed.line}行目: 「${unclosed.ch}」が閉じられていません` };
+    }
+    return { ok: true };
+}
+
+// Python-specific: indentation must be consistent (no tabs+spaces mix per
+// block, and no obviously broken dedent). Best-effort, not a full parser.
+function checkPythonIndentation(code) {
+    const lines = code.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        const leading = line.match(/^[ \t]*/)[0];
+        if (leading.includes('\t') && leading.includes(' ')) {
+            return { ok: false, reason: `${i + 1}行目: タブとスペースが混在しています` };
+        }
+    }
+    // Check that any line ending with ':' is followed by an indented block
+    for (let i = 0; i < lines.length - 1; i++) {
+        const line = lines[i];
+        const trimmed = line.trimEnd();
+        if (/:\s*$/.test(trimmed) && trimmed.trim() !== '' && !trimmed.trim().startsWith('#')) {
+            const curIndent = (line.match(/^[ \t]*/)[0] || '').length;
+            let j = i + 1;
+            while (j < lines.length && lines[j].trim() === '') j++;
+            if (j < lines.length) {
+                const nextIndent = (lines[j].match(/^[ \t]*/)[0] || '').length;
+                if (nextIndent <= curIndent) {
+                    return { ok: false, reason: `${i + 1}行目: 「:」の後にインデントされたブロックがありません` };
+                }
+            }
+        }
+    }
+    return { ok: true };
+}
+
+function checkJsonSyntax(code) {
+    try { JSON.parse(code); return { ok: true }; }
+    catch (e) { return { ok: false, reason: e.message }; }
+}
+
+// Returns array of { filename, reason } for files that look broken.
+function validateSyntax(parsedFiles) {
+    const issues = [];
+    parsedFiles.forEach(({ filename, code }) => {
+        if (!code || !code.trim()) return;
+        const lang = getFileSyntaxLang(filename);
+
+        const balance = checkBracketBalance(code);
+        if (!balance.ok) { issues.push({ filename: filename || '(無名ファイル)', reason: balance.reason }); return; }
+
+        if (lang === 'python') {
+            const indent = checkPythonIndentation(code);
+            if (!indent.ok) { issues.push({ filename: filename || '(無名ファイル)', reason: indent.reason }); return; }
+        }
+        if (lang === 'json') {
+            const json = checkJsonSyntax(code);
+            if (!json.ok) { issues.push({ filename: filename || '(無名ファイル)', reason: json.reason }); return; }
+        }
+    });
+    return issues;
+}
+
+function checkSyntaxAndConfirm(parsedFiles) {
+    const issues = validateSyntax(parsedFiles);
+    if (issues.length === 0) return Promise.resolve(true);
+
+    return new Promise(resolve => {
+        document.getElementById('syntax-confirm-detail').textContent =
+            issues.map(i => `${i.filename}\n  → ${i.reason}`).join('\n\n');
+        openModal('syntax-confirm-modal');
+
+        const onOk = () => { closeModal('syntax-confirm-modal'); cleanup(); resolve(true); };
+        const onCancel = () => { closeModal('syntax-confirm-modal'); cleanup(); resolve(false); };
+        const cleanup = () => {
+            document.getElementById('syntax-confirm-ok').removeEventListener('click', onOk);
+            document.getElementById('syntax-confirm-cancel').removeEventListener('click', onCancel);
+            document.getElementById('syntax-confirm-close').removeEventListener('click', onCancel);
+        };
+        document.getElementById('syntax-confirm-ok').addEventListener('click', onOk);
+        document.getElementById('syntax-confirm-cancel').addEventListener('click', onCancel);
+        document.getElementById('syntax-confirm-close').addEventListener('click', onCancel);
+    });
+}
+
+async function applyFiles(parsedFiles, rawResponse = '') {
     const proj = getProj();
     if (!proj || parsedFiles.length === 0) return;
 
-    const ok = await checkDangerAndConfirm(parsedFiles);
-    if (!ok) { toast('コードの適用をキャンセルしました', 'warning'); return; }
+    const dangerOk = await checkDangerAndConfirm(parsedFiles);
+    if (!dangerOk) { toast('コードの適用をキャンセルしました', 'warning'); return; }
 
+    const syntaxOk = await checkSyntaxAndConfirm(parsedFiles);
+    if (!syntaxOk) {
+        toast('構文エラーのため適用をキャンセルしました。前の状態を維持します', 'warning', 4000);
+        return;
+    }
+
+    // --- Snapshot for rollback before any mutation ---
+    const rollbackSnapshot = JSON.parse(JSON.stringify(proj.files));
+
+    // --- Delete files AI requested ---
+    const toDelete = parseDeleteFiles(rawResponse);
+    if (toDelete.length > 0) {
+        const deleted = [];
+        toDelete.forEach(name => {
+            const idx = proj.files.findIndex(f => f.name === name);
+            if (idx !== -1) {
+                proj.files.splice(idx, 1);
+                deleted.push(name);
+                // If the deleted file was active, reset
+                if (state.currentFile === name) state.currentFile = null;
+            }
+        });
+        if (deleted.length > 0) {
+            toast(`不要ファイルを削除: ${deleted.join(', ')}`, 'warning');
+        }
+    }
+
+    // --- Apply updated/new files ---
     parsedFiles.forEach(({ filename, code }) => {
         const name = filename || state.currentFile || 'main.py';
         const existing = proj.files.find(f => f.name === name);
@@ -1172,6 +1776,11 @@ async function applyFiles(parsedFiles) {
         }
     });
 
+    // Keep the pre-apply snapshot so the user can manually revert via
+    // the "last AI change" rollback if the result turns out wrong even
+    // though it passed syntax checks.
+    state.lastApplySnapshot = { projectId: proj.id, files: rollbackSnapshot, ts: Date.now() };
+
     save(); renderTabs();
 
     const firstName = parsedFiles[0].filename || state.currentFile || proj.files[0]?.name;
@@ -1179,8 +1788,11 @@ async function applyFiles(parsedFiles) {
         state.currentFile = firstName;
         const file = proj.files.find(f => f.name === firstName);
         if (file) showEditorForFile(file);
+    } else if (proj.files.length > 0) {
+        switchFile(proj.files[0].name);
     }
     generateTerminalCommands();
+
 }
 
 // ===== SEND MESSAGE =====
@@ -1240,7 +1852,7 @@ async function runAI(userText, isAutoIter = false, iterNum = 1, totalIter = 1, g
 
         const files = parseFiles(fullResponse);
         if (files.length > 0) {
-            await applyFiles(files);
+            await applyFiles(files, fullResponse);
             if (!isAutoIter) toast(`${files.length}個のファイルを更新しました`);
         }
 
@@ -1430,7 +2042,7 @@ ${filesStr}`;
 
         const files = parseFiles(fullResponse);
         if (files.length > 0) {
-            await applyFiles(files);
+            await applyFiles(files, fullResponse);
             toast(`最適化完了 — ${files.length}個のファイルを更新しました`);
         } else {
             toast('最適化分析が完了しました');
@@ -1528,7 +2140,8 @@ function initModalTabs() {
 
 // ===== INIT =====
 async function init() {
-    load();
+    await load();
+    initAutoBackup();
     applyTheme(state.theme);
     renderTemplates();
     renderProjects();
@@ -1581,6 +2194,7 @@ async function init() {
     document.getElementById('copy-code-btn').addEventListener('click', copyCode);
     document.getElementById('download-file-btn').addEventListener('click', () => { if(state.currentFile) downloadFile(state.currentFile); });
     document.getElementById('diff-toggle-btn').addEventListener('click', toggleDiff);
+    document.getElementById('zip-download-btn').addEventListener('click', downloadProjectZip);
     document.getElementById('export-project-btn').addEventListener('click', exportProject);
     document.getElementById('terminal-close').addEventListener('click', () => document.getElementById('terminal-panel').classList.remove('visible'));
 
@@ -1595,6 +2209,27 @@ async function init() {
         searchChat('');
     });
     document.getElementById('chat-search-input').addEventListener('input', e => searchChat(e.target.value));
+
+    // Revert last AI change
+    document.getElementById('revert-last-btn').addEventListener('click', () => {
+        const proj = getProj();
+        if (!proj) return;
+        const snap = state.lastApplySnapshot;
+        if (!snap || snap.projectId !== proj.id) {
+            toast('元に戻せる変更がありません', 'warning');
+            return;
+        }
+        proj.files = JSON.parse(JSON.stringify(snap.files));
+        state.lastApplySnapshot = null;
+        save(); renderTabs();
+        if (proj.files.length > 0) {
+            switchFile(proj.files[0].name);
+        } else {
+            showEmptyState();
+        }
+        generateTerminalCommands();
+        toast('直前のAI変更を元に戻しました', 'warning');
+    });
 
     // Clear chat
     document.getElementById('clear-chat-btn').addEventListener('click', () => {
@@ -1651,6 +2286,15 @@ async function init() {
     document.getElementById('settings-close').addEventListener('click', () => closeModal('settings-modal'));
     document.getElementById('settings-cancel').addEventListener('click', () => closeModal('settings-modal'));
     document.getElementById('settings-save').addEventListener('click', saveSettings);
+    document.getElementById('usage-reset-btn').addEventListener('click', async () => {
+        let usage = await idbGet('usage');
+        if (!usage) usage = {};
+        usage[todayKey()] = { prompt: 0, completion: 0, requests: 0 };
+        await idbSet('usage', usage);
+        state._usageWarningShownToday = false;
+        await renderUsageTab();
+        toast('今日の使用量をリセットしました');
+    });
     document.getElementById('add-api-key-btn').addEventListener('click', () => {
         state.apiKeys.push({ id: genId(), name: '', baseUrl: '', key: '' });
         renderApiKeysList(); renderProviderSelect();

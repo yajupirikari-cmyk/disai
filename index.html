@@ -96,11 +96,16 @@
                 </button>
                 <span class="header-divider"></span>
                 <h1 id="project-title" class="project-title">プロジェクト名</h1>
+                <span id="save-indicator" class="save-indicator">保存済み</span>
             </div>
             <div class="header-right">
-                <button id="export-project-btn" class="btn btn-secondary btn-sm" title="プロジェクトをエクスポート">
+                <button id="zip-download-btn" class="btn btn-primary btn-sm" title="全ファイルをZIPでダウンロード">
                     <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <span class="export-btn-text">エクスポート</span>
+                    <span class="export-btn-text">ZIPダウンロード</span>
+                </button>
+                <button id="export-project-btn" class="btn btn-secondary btn-sm" title="プロジェクトをJSON形式でバックアップ">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span class="export-btn-text">バックアップ</span>
                 </button>
                 <button id="theme-btn-editor" class="btn btn-icon" title="テーマ切り替え">
                     <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
@@ -143,9 +148,13 @@
                             </button>
                         </div>
                     </div>
-                    <div id="code-empty-state" class="code-empty-state">
+                    <div id="code-empty-state" class="code-empty-state" id="drop-zone">
                         <svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                         <p>チャットからコードを生成してください</p>
+                        <div class="drop-zone-hint">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            <span>ファイルをここにドロップして追加</span>
+                        </div>
                         <span class="shortcut-hint">Ctrl+S で保存</span>
                     </div>
                     <div id="monaco-editor" style="display:none;flex:1"></div>
@@ -159,9 +168,21 @@
                         <div id="terminal-content" class="terminal-content"></div>
                     </div>
                 </div>
+                <!-- Status Bar -->
+                <div id="editor-status-bar" class="editor-status-bar hidden">
+                    <span class="status-item" id="status-errors"></span>
+                    <span class="status-sep">|</span>
+                    <span class="status-item" id="status-warnings"></span>
+                    <span class="status-sep">|</span>
+                    <span class="status-item" id="status-pos">行 1, 列 1</span>
+                    <span class="status-sep">|</span>
+                    <span class="status-item" id="status-lang">plaintext</span>
+                </div>
             </div>
             <!-- Resizer -->
             <div id="panel-resizer" class="panel-resizer"></div>
+            <!-- Hidden file input for drop/import -->
+            <input type="file" id="drop-file-input" multiple style="display:none">
             <!-- Chat Panel -->
             <div class="chat-panel">
                 <div class="chat-header">
@@ -182,6 +203,9 @@
                         </button>
                         <button id="chat-search-btn" class="btn btn-icon-sm" title="チャット内検索">
                             <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        </button>
+                        <button id="revert-last-btn" class="btn btn-icon-sm" title="直前のAI変更を元に戻す">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
                         </button>
                         <button id="clear-chat-btn" class="btn btn-icon-sm" title="チャット履歴をクリア">
                             <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
@@ -237,6 +261,17 @@
                     <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
                     <div id="progress-text" class="progress-text">処理中...</div>
                 </div>
+                <!-- Quick Chips -->
+                <div class="quick-chips" id="quick-chips">
+                    <button class="chip" data-msg="バグを見つけて直してください">バグを直す</button>
+                    <button class="chip" data-msg="コード全体にわかりやすいコメントを追加してください">コメント追加</button>
+                    <button class="chip" data-msg="コードをリファクタリングして、より読みやすく整理してください">リファクタリング</button>
+                    <button class="chip" data-msg="エラーハンドリングを追加してください">エラー処理追加</button>
+                    <button class="chip" data-msg="このコードのテストを書いてください">テスト作成</button>
+                    <button class="chip" data-msg="コードを最適化してパフォーマンスを改善してください">最適化</button>
+                    <button class="chip" data-msg="requirements.txtまたはpackage.jsonを最新の状態に更新してください">依存関係を更新</button>
+                    <button class="chip" data-msg="セキュリティ上の問題がないか確認して修正してください">セキュリティ確認</button>
+                </div>
                 <div class="chat-input-area">
                     <div class="chat-input-wrap">
                         <textarea id="chat-input" class="chat-input" placeholder="AIに指示する... (Enter で送信 / Shift+Enter で改行)" rows="1"></textarea>
@@ -263,6 +298,8 @@
                 <button class="modal-tab active" data-tab="api">APIキー</button>
                 <button class="modal-tab" data-tab="ai">AIモデル</button>
                 <button class="modal-tab" data-tab="prompt">プロンプト</button>
+                <button class="modal-tab" data-tab="usage">使用量</button>
+                <button class="modal-tab" data-tab="data">データ管理</button>
             </div>
             <div class="modal-body">
                 <!-- API Keys Tab -->
@@ -303,6 +340,28 @@
                         <textarea id="custom-prompt-input" class="input" rows="10" placeholder="例: 常にTypeScriptで書いてください。コメントは英語で書いてください。"></textarea>
                     </div>
                     <button id="reset-prompt-btn" class="btn btn-ghost btn-sm">デフォルトに戻す</button>
+                </div>
+                <!-- Usage / Cost Tab -->
+                <div class="modal-tab-content" data-tab="usage">
+                    <p class="section-desc">APIの推定使用量を表示します（トークン数はAPIレスポンスに基づく概算です）。</p>
+                    <div class="usage-stats-grid" id="usage-stats-grid"></div>
+                    <div class="form-group">
+                        <label for="usage-limit-input">1日の推定トークン上限（警告のみ・送信は止めません）</label>
+                        <input type="number" id="usage-limit-input" class="input" placeholder="例: 500000" min="0" step="10000">
+                    </div>
+                    <button id="usage-reset-btn" class="btn btn-ghost btn-sm">今日の使用量をリセット</button>
+                </div>
+                <!-- Data Management Tab -->
+                <div class="modal-tab-content" data-tab="data">
+                    <p class="section-desc">プロジェクトデータは自動的にこの端末のIndexedDBに保存され、5分おきにバックアップが作られます（最新5件保持）。</p>
+                    <div class="form-group">
+                        <label>バックアップから復元</label>
+                        <div id="backup-list" class="backup-list">
+                            <p class="section-desc">バックアップを読み込み中...</p>
+                        </div>
+                    </div>
+                    <hr class="divider">
+                    <div class="storage-info" id="storage-info"></div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -420,6 +479,30 @@
             <div class="modal-footer">
                 <button id="danger-confirm-cancel" class="btn btn-ghost">適用しない</button>
                 <button id="danger-confirm-ok" class="btn btn-danger">理解して適用する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SYNTAX ERROR CONFIRM MODAL -->
+    <div id="syntax-confirm-modal" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h2>構文エラーの可能性</h2>
+                <button id="syntax-confirm-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="danger-icon-wrap warning">
+                    <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                </div>
+                <p class="delete-message" style="font-weight:600;margin-bottom:8px">AIが生成したコードに構文エラーの可能性があります</p>
+                <p id="syntax-confirm-detail" class="delete-message" style="font-size:12px;white-space:pre-wrap"></p>
+                <p class="delete-message" style="margin-top:10px">それでもこのコードを適用しますか？適用前の内容はいつでも元に戻せます。</p>
+            </div>
+            <div class="modal-footer">
+                <button id="syntax-confirm-cancel" class="btn btn-ghost">適用しない（前の状態を保持）</button>
+                <button id="syntax-confirm-ok" class="btn btn-danger">それでも適用する</button>
             </div>
         </div>
     </div>
