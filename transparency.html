@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>透明性レポート - AI Code Builder</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root[data-theme="dark"] {
+            --bg: #0f111a;
+            --text: #e2e8f0;
+            --surface: #1e2130;
+            --border: #2d3142;
+            --primary: #6366f1;
+        }
+        :root[data-theme="light"] {
+            --bg: #f8fafc;
+            --text: #1e293b;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --primary: #4f46e5;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--surface);
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        h1 { margin-top: 0; color: var(--primary); }
+        h3 { margin-top: 24px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        p, li { color: var(--text); opacity: 0.9; margin-bottom: 8px; }
+        ul { margin-bottom: 16px; padding-left: 24px; }
+        .back-btn {
+            display: inline-block;
+            margin-bottom: 24px;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .back-btn:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-btn">&larr; アプリに戻る</a>
+        <h1>透明性レポート</h1>
+        <p>AI Code Builder は、ユーザーのプライバシーとデータセキュリティを第一に考えて設計されています。以下にデータの取り扱いについての詳細を報告いたします。</p>
+
+        <h3>1. データの保存と利用</h3>
+        <ul>
+            <li><strong>ローカルファースト:</strong> プロジェクトのソースコードやチャット履歴は、すべてお使いのブラウザ内部（IndexedDB）に保存されます。当方のサーバーに保存されることはありません。</li>
+            <li><strong>AI学習の非利用:</strong> 入力されたプロンプトや生成されたコードは、LLM（大規模言語モデル）の学習データとして使用されることはありません。</li>
+        </ul>
+
+        <h3>2. APIキーの保護</h3>
+        <ul>
+            <li><strong>暗号化:</strong> アプリ内で設定されたAPIキーは、Web Crypto API (AES-GCM) を用いてブラウザのローカルストレージ内で強力に暗号化されます。</li>
+            <li><strong>通信の安全性:</strong> APIキーは、コード生成のために指定されたLLMプロバイダー（OpenAI, Groq等）の公式エンドポイントへのみ直接送信され、中継サーバー等を経由しません。</li>
+        </ul>
+
+        <h3>3. 外部通信について</h3>
+        <ul>
+            <li>本アプリケーションは、ユーザーの利便性を高めるため、以下の外部サービスと通信を行います：
+                <ul>
+                    <li><strong>LLM API:</strong> ユーザーが設定したプロバイダーのAPI（コード生成用）</li>
+                    <li><strong>CDN:</strong> Monaco Editor、フォント等のアセット読み込み</li>
+                </ul>
+            </li>
+            <li>上記以外のトラッキング、分析（アナリティクス）、または第三者へのデータ提供を行うための通信は一切ありません。</li>
+        </ul>
+
+        <h3>4. セキュリティ対策</h3>
+        <ul>
+            <li>生成されたコードの中には、危険な操作（システムの破壊、意図しない外部通信等）が含まれる可能性があるため、アプリ内には簡易的な危険コード検知（Danger Detection）システムを導入し、ユーザーに警告を表示する仕組みを設けています。</li>
+        </ul>
+    </div>
+</body>
+</html>
