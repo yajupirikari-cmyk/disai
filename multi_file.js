@@ -25,22 +25,21 @@ function renderFileTree() {
     });
 }
 
-// Hook into switchFile and renderTabs to update tree
-// ※ app.js では renderFiles ではなく renderTabs が正しい関数名
+// Hook into switchFile and renderFiles to update tree
 const _origSwitchFile = switchFile;
 switchFile = function(filename) {
     _origSwitchFile(filename);
     renderFileTree();
 };
 
-const _origRenderTabs = renderTabs;
-renderTabs = function() {
-    _origRenderTabs();
+const _origRenderFiles = renderFiles;
+renderFiles = function() {
+    _origRenderFiles();
     renderFileTree();
 };
 
 document.getElementById('add-file-sidebar-btn')?.addEventListener('click', () => {
-    document.getElementById('add-tab-btn')?.click();
+    document.getElementById('add-tab-btn')?.click(); // Reuse existing add file modal logic
 });
 
 // --- Diff UI ---
@@ -72,6 +71,7 @@ function renderDiffFileList() {
 
     pendingDiffFiles.forEach((f, idx) => {
         const isNew = !proj.files.find(pf => pf.name === f.filename);
+        const isDel = !f.filename; // Special marker for delete if we use it, but currently parseDeleteFiles is separate.
         
         const item = document.createElement('div');
         item.className = 'diff-file-item';
@@ -96,6 +96,7 @@ function renderDiffFileList() {
 
         list.appendChild(item);
         
+        // Auto-select first
         if (idx === 0) item.click();
     });
 }
@@ -112,16 +113,22 @@ function renderDiffContent(fileObj) {
     const oldCode = oldFile ? oldFile.content : '';
     const newCode = fileObj.code;
     
-    const oldLines = oldCode.split('\n');
-    const newLines = newCode.split('\n');
+    // Very simple line-by-line diff display for now (a real diff library is better, but this is lightweight)
+    const oldLines = oldCode.split('\\n');
+    const newLines = newCode.split('\\n');
     
     let html = '';
     
+    // If it's a completely new file
     if (!oldFile) {
         newLines.forEach((l, i) => {
             html += `<div class="diff-line add"><div class="diff-line-num">${i+1}</div><div class="diff-line-text">+ ${esc(l)}</div></div>`;
         });
     } else {
+        // Crude diff (in a real app we'd use diff-match-patch or similar)
+        // Here we just show the new code as added lines if it differs, for simplicity in MVP.
+        // To make it slightly better: show whole file, but highlight changes if possible.
+        // Since we don't have a diff lib, we'll just show the new file and mark it "NEW CONTENT".
         newLines.forEach((l, i) => {
             const isChanged = oldLines[i] !== l;
             const cls = isChanged ? 'add' : '';
