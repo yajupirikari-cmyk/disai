@@ -44,6 +44,8 @@
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                 </div>
                 <h1 class="logo-text">AI Code Builder</h1>
+                <a href="#" id="tos-link" class="header-link" style="margin-left:16px; font-size:12px; opacity:0.7; color:inherit; text-decoration:none;">利用規約</a>
+                <a href="#" id="transparency-link" class="header-link" style="margin-left:12px; font-size:12px; opacity:0.7; color:inherit; text-decoration:none;">透明性レポート</a>
             </div>
             <div class="header-right">
                 <button id="theme-btn-home" class="btn btn-icon" title="テーマ切り替え">
@@ -134,6 +136,10 @@
                     <div class="code-toolbar">
                         <span id="current-file-name" class="current-file-label"></span>
                         <div class="code-toolbar-actions">
+                            <button id="preview-btn" class="btn btn-sm btn-primary" title="プレビューを実行">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <span>プレビュー</span>
+                            </button>
                             <button id="diff-toggle-btn" class="btn btn-sm">
                                 <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
                                 <span>差分</span>
@@ -263,6 +269,7 @@
                 </div>
                 <!-- Quick Chips -->
                 <div class="quick-chips" id="quick-chips">
+                    <button class="chip" data-msg="前回の続きから実装を再開してください。不足しているコードを出力してください。">続きから</button>
                     <button class="chip" data-msg="バグを見つけて直してください">バグを直す</button>
                     <button class="chip" data-msg="コード全体にわかりやすいコメントを追加してください">コメント追加</button>
                     <button class="chip" data-msg="コードをリファクタリングして、より読みやすく整理してください">リファクタリング</button>
@@ -365,6 +372,11 @@
                         <div id="backup-list" class="backup-list">
                             <p class="section-desc">バックアップを読み込み中...</p>
                         </div>
+                    </div>
+                    <div class="form-group" style="margin-top:16px;">
+                        <label>エラーログ管理</label>
+                        <p class="section-desc">アプリケーションの動作中に発生したエラーログをエクスポートできます。</p>
+                        <button id="export-logs-btn" class="btn btn-secondary btn-sm">エラーログをエクスポート (JSON)</button>
                     </div>
                     <hr class="divider">
                     <div class="storage-info" id="storage-info"></div>
@@ -563,6 +575,54 @@
             <div class="modal-footer">
                 <button id="cleanup-cancel" class="btn btn-ghost">キャンセル</button>
                 <button id="cleanup-delete-selected" class="btn btn-danger">選択したファイルを削除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PREVIEW MODAL -->
+    <div id="preview-modal" class="modal-overlay hidden">
+        <div class="modal modal-lg" style="height: 90vh; display: flex; flex-direction: column; max-width: 90%;">
+            <div class="modal-header">
+                <h2>プレビュー (HTML/JS/CSS)</h2>
+                <div class="header-right" style="display:flex; gap:8px;">
+                    <button id="preview-refresh" class="btn btn-icon-sm" title="更新"><svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg></button>
+                    <button id="preview-close" class="btn btn-icon">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body" style="flex: 1; padding: 0; background: #fff; overflow:hidden;">
+                <iframe id="preview-iframe" style="width: 100%; height: 100%; border: none; background: #fff;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOS MODAL -->
+    <div id="tos-modal" class="modal-overlay hidden">
+        <div class="modal modal-lg" style="max-height: 80vh; display:flex; flex-direction:column;">
+            <div class="modal-header">
+                <h2>利用規約</h2>
+                <button id="tos-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" id="tos-content" style="overflow-y: auto; font-size: 13px; line-height: 1.6; padding-right:16px;">
+                <!-- Content will go here via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- TRANSPARENCY MODAL -->
+    <div id="transparency-modal" class="modal-overlay hidden">
+        <div class="modal modal-lg" style="max-height: 80vh; display:flex; flex-direction:column;">
+            <div class="modal-header">
+                <h2>透明性レポート</h2>
+                <button id="transparency-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" id="transparency-content" style="overflow-y: auto; font-size: 13px; line-height: 1.6; padding-right:16px;">
+                <!-- Content will go here via JS -->
             </div>
         </div>
     </div>

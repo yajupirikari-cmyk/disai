@@ -27,12 +27,57 @@ function idbOpen() {
     });
 }
 
+// ===== CRYPTO UTILS =====
+const CRYPTO_KEY_ID = 'acb_crypto_key';
+
+async function getOrGenerateCryptoKey() {
+    let keyData = localStorage.getItem(CRYPTO_KEY_ID);
+    if (!keyData) {
+        const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+        const exported = await crypto.subtle.exportKey('jwk', key);
+        localStorage.setItem(CRYPTO_KEY_ID, JSON.stringify(exported));
+        return key;
+    } else {
+        const jwk = JSON.parse(keyData);
+        return await crypto.subtle.importKey('jwk', jwk, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+    }
+}
+
+async function encryptData(data) {
+    try {
+        const key = await getOrGenerateCryptoKey();
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const encoded = new TextEncoder().encode(JSON.stringify(data));
+        const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+        return {
+            iv: Array.from(iv),
+            data: Array.from(new Uint8Array(encrypted)),
+            _encrypted: true
+        };
+    } catch (e) { console.error('Encrypt failed', e); return data; }
+}
+
+async function decryptData(encryptedObj) {
+    if (!encryptedObj || !encryptedObj._encrypted) return encryptedObj;
+    try {
+        const key = await getOrGenerateCryptoKey();
+        const iv = new Uint8Array(encryptedObj.iv);
+        const data = new Uint8Array(encryptedObj.data);
+        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+        return JSON.parse(new TextDecoder().decode(decrypted));
+    } catch (e) { console.error('Decrypt failed', e); return []; }
+}
+
 async function idbSet(key, value) {
     try {
+        let finalValue = value;
+        if (key === 'apiKeys') {
+            finalValue = await encryptData(value);
+        }
         const db = await idbOpen();
         return new Promise((resolve, reject) => {
             const tx = db.transaction(IDB_STORE, 'readwrite');
-            tx.objectStore(IDB_STORE).put(value, key);
+            tx.objectStore(IDB_STORE).put(finalValue, key);
             tx.oncomplete = () => resolve(true);
             tx.onerror = () => reject(tx.error);
         });
@@ -45,7 +90,13 @@ async function idbGet(key) {
         return new Promise((resolve, reject) => {
             const tx = db.transaction(IDB_STORE, 'readonly');
             const req = tx.objectStore(IDB_STORE).get(key);
-            req.onsuccess = () => resolve(req.result);
+            req.onsuccess = async () => {
+                let res = req.result;
+                if (key === 'apiKeys' && res && res._encrypted) {
+                    res = await decryptData(res) || [];
+                }
+                resolve(res);
+            };
             req.onerror = () => reject(req.error);
         });
     } catch (e) { console.error('idbGet failed:', e); return undefined; }
@@ -2582,3 +2633,154 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ===== ERROR LOG COLLECTION =====
+state.errorLogs = [];
+const MAX_LOGS = 100;
+function logError(errStr) {
+    state.errorLogs.push({ time: new Date().toISOString(), error: errStr });
+    if (state.errorLogs.length > MAX_LOGS) state.errorLogs.shift();
+}
+window.addEventListener('error', e => {
+    logError(`[Window Error] ${e.message} at ${e.filename}:${e.lineno}:${e.colno}`);
+});
+window.addEventListener('unhandledrejection', e => {
+    logError(`[Unhandled Rejection] ${e.reason}`);
+});
+const origConsoleError = console.error;
+console.error = function(...args) {
+    logError(`[Console Error] ${args.join(' ')}`);
+    origConsoleError.apply(console, args);
+};
+
+document.getElementById('export-logs-btn')?.addEventListener('click', () => {
+    if (state.errorLogs.length === 0) { toast('繧ｨ繝ｩ繝ｼ繝ｭ繧ｰ縺ｯ縺ゅｊ縺ｾ縺帙ｓ', 'success'); return; }
+    const blob = new Blob([JSON.stringify(state.errorLogs, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `error_logs_${new Date().getTime()}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('繧ｨ繝ｩ繝ｼ繝ｭ繧ｰ繧偵お繧ｯ繧ｹ繝昴・繝医＠縺ｾ縺励◆');
+});
+
+// ===== PREVIEW LOGIC =====
+document.getElementById('preview-btn')?.addEventListener('click', () => {
+    const proj = getProj();
+    if (!proj) return;
+    const htmlFile = proj.files.find(f => f.name.endsWith('.html'));
+    if (!htmlFile) {
+        toast('繝励Ξ繝薙Η繝ｼ縺ｫ縺ｯ HTML 繝輔ぃ繧､繝ｫ縺悟ｿ・ｦ√〒縺・, 'warning');
+        return;
+    }
+    openModal('preview-modal');
+    refreshPreview();
+});
+
+document.getElementById('preview-close')?.addEventListener('click', () => closeModal('preview-modal'));
+document.getElementById('preview-refresh')?.addEventListener('click', refreshPreview);
+
+function refreshPreview() {
+    const iframe = document.getElementById('preview-iframe');
+    if (!iframe) return;
+    const proj = getProj();
+    if (!proj) return;
+    
+    let htmlContent = proj.files.find(f => f.name.endsWith('.html'))?.content || '';
+    const cssContent = proj.files.find(f => f.name.endsWith('.css'))?.content || '';
+    const jsContent = proj.files.find(f => f.name.endsWith('.js'))?.content || '';
+    
+    // Inject CSS
+    if (cssContent && !htmlContent.includes('<style id="injected-css">')) {
+        htmlContent = htmlContent.replace('</head>', `<style id="injected-css">\n${cssContent}\n</style></head>`);
+    }
+    // Inject JS
+    if (jsContent && !htmlContent.includes('<script id="injected-js">')) {
+        htmlContent = htmlContent.replace('</body>', `<script id="injected-js">\n${jsContent}\n</script></body>`);
+    }
+    
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    iframe.src = URL.createObjectURL(blob);
+}
+
+// ===== TOS AND TRANSPARENCY REPORT =====
+const TOS_CONTENT = `
+<h3>AI Code Builder 蛻ｩ逕ｨ隕冗ｴ・/h3>
+${Array.from({length: 30}).map((_, i) => `<p><strong>隨ｬ${i + 1}譚｡</strong><br>譛ｬ繧ｵ繝ｼ繝薙せ縺ｮ蛻ｩ逕ｨ縺ｫ縺ゅ◆繧翫√Θ繝ｼ繧ｶ繝ｼ縺ｯ髢｢騾｣縺吶ｋ豕穂ｻ､縺翫ｈ縺ｳ蜈ｬ蠎剰憶菫励ｒ驕ｵ螳医☆繧九ｂ縺ｮ縺ｨ縺励∪縺吶りｩｳ邏ｰ縺ｪ隕丞ｮ・{i+1}縺ｫ縺､縺・※縺薙％縺ｫ螳壹ａ縺ｾ縺吶・/p>`).join('')}
+`;
+
+const TRANSPARENCY_CONTENT = `
+<h3>騾乗・諤ｧ繝ｬ繝昴・繝・/h3>
+<p>AI Code Builder 縺ｯ縲√Θ繝ｼ繧ｶ繝ｼ縺ｮ繝励Λ繧､繝舌す繝ｼ縺ｨ繝・・繧ｿ繧ｻ繧ｭ繝･繝ｪ繝・ぅ繧堤ｬｬ荳縺ｫ閠・∴縺ｦ縺・∪縺吶・/p>
+<ul>
+<li>繝・・繧ｿ縺ｮ蛻ｩ逕ｨ: 逕滓・縺輔ｌ縺溘さ繝ｼ繝峨ｄ繝√Ε繝・ヨ螻･豁ｴ縺ｯ縲√Δ繝・Ν縺ｮ蟄ｦ鄙偵↓縺ｯ菴ｿ逕ｨ縺輔ｌ縺ｾ縺帙ｓ縲・/li>
+<li>證怜捷蛹・ 繝ｦ繝ｼ繧ｶ繝ｼ縺ｮAPI繧ｭ繝ｼ縺ｯ繝悶Λ繧ｦ繧ｶ蜀・〒繝ｭ繝ｼ繧ｫ繝ｫ縺ｫ證怜捷蛹厄ｼ・ES-GCM・峨＆繧後※菫晏ｭ倥＆繧後∝､夜Κ繧ｵ繝ｼ繝舌・縺ｫ縺ｯ騾∽ｿ｡縺輔ｌ縺ｾ縺帙ｓ縲・/li>
+<li>騾壻ｿ｡蜈・ 謖・ｮ壹＆繧後◆LLM繝励Ο繝舌う繝繝ｼ・・penAI, Groq遲会ｼ峨・API繧ｨ繝ｳ繝峨・繧､繝ｳ繝医∈縺ｮ縺ｿ逶ｴ謗･騾壻ｿ｡繧定｡後＞縺ｾ縺吶・/li>
+</ul>
+`;
+
+document.getElementById('tos-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('tos-content').innerHTML = TOS_CONTENT;
+    openModal('tos-modal');
+});
+document.getElementById('tos-close')?.addEventListener('click', () => closeModal('tos-modal'));
+
+document.getElementById('transparency-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('transparency-content').innerHTML = TRANSPARENCY_CONTENT;
+    openModal('transparency-modal');
+});
+document.getElementById('transparency-close')?.addEventListener('click', () => closeModal('transparency-modal'));
+
+// ===== MONACO ENHANCEMENTS =====
+// Inject enhancements directly by hooking into monaco if available, or wait for it.
+function enhanceMonaco() {
+    if (typeof monaco === 'undefined') {
+        setTimeout(enhanceMonaco, 500);
+        return;
+    }
+    
+    // TS/JS Compiler Options
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: false,
+        noSyntaxValidation: false
+    });
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+        target: monaco.languages.typescript.ScriptTarget.ES2020,
+        allowNonTsExtensions: true
+    });
+
+    // Simple Snippets for JS
+    monaco.languages.registerCompletionItemProvider('javascript', {
+        provideCompletionItems: function(model, position) {
+            var word = model.getWordUntilPosition(position);
+            var range = {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn
+            };
+            var suggestions = [
+                {
+                    label: 'clog',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: 'console.log($1);',
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    documentation: 'Log to console',
+                    range: range
+                },
+                {
+                    label: 'fetch',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: 'fetch(\\'$1\\')\\n\\t.then(res => res.json())\\n\\t.then(data => {\\n\\t\\t$2\\n\\t});',
+                    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                    documentation: 'Fetch API',
+                    range: range
+                }
+            ];
+            return { suggestions: suggestions };
+        }
+    });
+}
+enhanceMonaco();
