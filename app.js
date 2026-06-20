@@ -1997,6 +1997,15 @@ async function applyFiles(parsedFiles, rawResponse = '') {
         }
     }
 
+    // --- Show Diff Modal ---
+    if (typeof showDiffModal === 'function') {
+        const diffOk = await showDiffModal(parsedFiles, rawResponse);
+        if (!diffOk) {
+            toast('適用をキャンセルしました。', 'info');
+            return;
+        }
+    }
+
     // --- Snapshot for rollback before any mutation ---
     const rollbackSnapshot = JSON.parse(JSON.stringify(proj.files));
 

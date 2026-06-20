@@ -25,9 +25,8 @@ function renderFileTree() {
     });
 }
 
-// Hook into switchFile to update tree after file switch
-// ※ app.js では renderFiles ではなく renderTabs が使われているため、
-//   renderTabs をフックする（旧コードの renderFiles フックはクラッシュの原因）
+// Hook into switchFile and renderTabs to update tree
+// ※ app.js では renderFiles ではなく renderTabs が正しい関数名
 const _origSwitchFile = switchFile;
 switchFile = function(filename) {
     _origSwitchFile(filename);
@@ -39,15 +38,6 @@ renderTabs = function() {
     _origRenderTabs();
     renderFileTree();
 };
-
-// openProject 後もツリーを更新
-const _origOpenProject = typeof openProject === 'function' ? openProject : null;
-if (_origOpenProject) {
-    openProject = function(id) {
-        _origOpenProject(id);
-        // renderTabs が内部で呼ばれるので renderFileTree は renderTabs フック経由で実行される
-    };
-}
 
 document.getElementById('add-file-sidebar-btn')?.addEventListener('click', () => {
     document.getElementById('add-tab-btn')?.click();
@@ -106,7 +96,6 @@ function renderDiffFileList() {
 
         list.appendChild(item);
         
-        // Auto-select first
         if (idx === 0) item.click();
     });
 }
