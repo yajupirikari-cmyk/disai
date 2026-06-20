@@ -389,6 +389,58 @@ function getLang(filename) {
     return {py:'python',js:'javascript',ts:'typescript',jsx:'javascript',tsx:'typescript',json:'json',sh:'shell',bash:'shell',md:'markdown',yml:'yaml',yaml:'yaml',txt:'plaintext',env:'plaintext',toml:'toml',html:'html',css:'css',rs:'rust',go:'go',rb:'ruby',java:'java',cpp:'cpp',c:'c',cs:'csharp'}[ext] || 'plaintext';
 }
 
+// ===== LINT / DIAGNOSTICS BADGES =====
+// Reads Monaco's current diagnostics (markers) for the active model and
+// reflects them in the status bar + the corresponding file tab. Monaco's
+// markers come from its built-in language services (mainly useful for
+// JSON/TS/JS — for plain-text languages like Python this will simply
+// report 0, which is fine since we don't run a real linter here).
+function updateLintBadges() {
+    if (!state.monacoEditor || typeof monaco === 'undefined') return;
+    const model = state.monacoEditor.getModel();
+    if (!model) return;
+
+    const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+    const errorCount = markers.filter(m => m.severity === monaco.MarkerSeverity.Error).length;
+    const warningCount = markers.filter(m => m.severity === monaco.MarkerSeverity.Warning).length;
+
+    // --- Status bar ---
+    const bar = document.getElementById('editor-status-bar');
+    const errEl = document.getElementById('status-errors');
+    const warnEl = document.getElementById('status-warnings');
+    if (bar && errEl && warnEl) {
+        errEl.textContent = `エラー ${errorCount}`;
+        warnEl.textContent = `警告 ${warningCount}`;
+        bar.classList.remove('has-errors', 'has-warnings');
+        if (errorCount > 0) bar.classList.add('has-errors');
+        else if (warningCount > 0) bar.classList.add('has-warnings');
+    }
+
+    // --- Tab badge for the currently open file ---
+    if (state.currentFile) {
+        const tab = document.querySelector(`.file-tab[data-filename="${cssEscapeAttr(state.currentFile)}"]`);
+        if (tab) {
+            tab.querySelectorAll('.tab-error-badge, .tab-warn-badge').forEach(b => b.remove());
+            if (errorCount > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'tab-error-badge';
+                badge.textContent = errorCount > 99 ? '99+' : String(errorCount);
+                tab.appendChild(badge);
+            } else if (warningCount > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'tab-warn-badge';
+                badge.textContent = warningCount > 99 ? '99+' : String(warningCount);
+                tab.appendChild(badge);
+            }
+        }
+    }
+}
+
+// Minimal attribute-value escaper for use inside querySelector strings.
+function cssEscapeAttr(str) {
+    return String(str).replace(/["\\]/g, '\\$&');
+}
+
 // ===== DANGER DETECTION =====
 // Detects patterns that could be harmful in generated code
 const DANGER_PATTERNS = [
@@ -645,6 +697,7 @@ function renderTabs() {
         const isEmpty = !file.content || file.content.trim() === '';
         tab.className = 'file-tab' + (file.name === state.currentFile ? ' active' : '') + (isEmpty ? ' stale' : '');
         tab.title = isEmpty ? `${file.name} (内容なし)` : file.name;
+        tab.dataset.filename = file.name;
         tab.innerHTML = `
             <span>${esc(file.name)}</span>
             <span class="file-tab-close"><svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>`;
