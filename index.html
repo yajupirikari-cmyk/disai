@@ -129,6 +129,19 @@
             </div>
         </header>
         <main class="editor-main">
+            <!-- File Sidebar -->
+            <div class="sidebar-panel">
+                <div class="sidebar-header">
+                    <h3>エクスプローラー</h3>
+                    <div style="display:flex;gap:4px">
+                        <button id="add-file-sidebar-btn" class="btn btn-icon-sm" title="ファイルを追加">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="file-tree" class="file-tree"></div>
+            </div>
+            <div class="panel-resizer" id="sidebar-resizer"></div>
             <!-- Code Panel -->
             <div class="editor-panel">
                 <div class="tabs-bar">
@@ -428,6 +441,15 @@
                     <label for="project-name-input">プロジェクト名</label>
                     <input type="text" id="project-name-input" class="input" placeholder="例: Webアプリ、Discord Bot...">
                 </div>
+                <div class="form-group">
+                    <label for="project-template-select">テンプレート</label>
+                    <select id="project-template-select" class="input">
+                        <option value="vanilla">Vanilla (HTML/CSS/JS)</option>
+                        <option value="react">React (Babel + JSX)</option>
+                        <option value="vue">Vue 3</option>
+                        <option value="tailwind">Tailwind CSS</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-footer">
                 <button id="new-project-cancel" class="btn btn-ghost">キャンセル</button>
@@ -697,6 +719,29 @@
         </div>
     </div>
 
+    <!-- MULTI-FILE DIFF MODAL -->
+    <div id="diff-modal" class="modal-overlay hidden">
+        <div class="modal modal-lg" style="height:80vh; max-height:800px;">
+            <div class="modal-header">
+                <h2>変更の確認 (差分)</h2>
+                <button id="diff-modal-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body diff-modal-body">
+                <div id="diff-file-list" class="diff-file-list"></div>
+                <div class="diff-content-preview">
+                    <div id="diff-content-header" class="diff-content-header">ファイルを選択して差分を確認</div>
+                    <div id="diff-scroll-area" class="diff-scroll-area"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="diff-modal-reject" class="btn btn-ghost">破棄する</button>
+                <button id="diff-modal-accept" class="btn btn-primary">変更を適用</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Monaco Editor loader -->
     <script>var require = { paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } };</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
@@ -704,6 +749,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="app.js"></script>
-    <script src="hosting.js"></script>
+    <script src="hosting.js"></script>\n    <script src="multi_file.js"></script>
 </body>
 </html>

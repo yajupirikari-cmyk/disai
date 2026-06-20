@@ -1988,6 +1988,15 @@ async function applyFiles(parsedFiles, rawResponse = '') {
         return;
     }
 
+    // --- Show Diff Modal ---
+    if (typeof showDiffModal === 'function') {
+        const diffOk = await showDiffModal(parsedFiles, rawResponse);
+        if (!diffOk) {
+            toast('適用をキャンセルしました。', 'info');
+            return;
+        }
+    }
+
     // --- Snapshot for rollback before any mutation ---
     const rollbackSnapshot = JSON.parse(JSON.stringify(proj.files));
 
@@ -2441,7 +2450,95 @@ async function init() {
     document.getElementById('new-project-create').addEventListener('click', () => {
         const name = document.getElementById('project-name-input').value.trim();
         if (!name) return;
-        const proj = { id: genId(), name, createdAt: Date.now(), files: [{ name: 'main.py', content: '' }], chatHistory: [] };
+        const template = document.getElementById('project-template-select')?.value || 'vanilla';
+        
+        let initialFiles = [];
+        if (template === 'vanilla' || template === 'tailwind') {
+            initialFiles = [
+                { name: 'index.html', content: '<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Hello ' + name + '</h1>
+  <script src="app.js"><\/script>
+</body>
+</html>' },
+                { name: 'style.css', content: 'body {
+  font-family: sans-serif;
+  padding: 2rem;
+}' },
+                { name: 'app.js', content: 'console.log("Hello World");' }
+            ];
+        } else if (template === 'react') {
+            initialFiles = [
+                { name: 'index.html', content: '<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>React App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" src="app.jsx"><\/script>
+</body>
+</html>' },
+                { name: 'style.css', content: 'body {
+  font-family: sans-serif;
+  padding: 2rem;
+}' },
+                { name: 'app.jsx', content: 'function App() {
+  const [count, React_setCount] = React.useState(0);
+  return (
+    <div>
+      <h1>Hello React</h1>
+      <button onClick={() => React_setCount(c => c + 1)}>Count: {count}</button>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);' }
+            ];
+        } else if (template === 'vue') {
+            initialFiles = [
+                { name: 'index.html', content: '<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vue App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">{{ message }}</div>
+  <script src="app.js"><\/script>
+</body>
+</html>' },
+                { name: 'style.css', content: 'body {
+  font-family: sans-serif;
+  padding: 2rem;
+}' },
+                { name: 'app.js', content: 'const { createApp, ref } = Vue;
+
+createApp({
+  setup() {
+    const message = ref("Hello Vue!");
+    return { message };
+  }
+}).mount("#app");' }
+            ];
+        } else {
+            initialFiles = [{ name: 'main.py', content: '' }];
+        }
+
+        const proj = { id: genId(), name, template, createdAt: Date.now(), files: initialFiles, chatHistory: [] };
         state.projects.unshift(proj); save(); closeModal('new-project-modal'); renderProjects(); openProject(proj.id);
     });
     document.getElementById('project-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('new-project-create').click(); });
@@ -2663,15 +2760,54 @@ function refreshPreview() {
     
     let htmlContent = proj.files.find(f => f.name.endsWith('.html'))?.content || '';
     const cssContent = proj.files.find(f => f.name.endsWith('.css'))?.content || '';
-    const jsContent = proj.files.find(f => f.name.endsWith('.js'))?.content || '';
+    
+    // Find JS/JSX content
+    const jsFile = proj.files.find(f => f.name.endsWith('.js') || f.name.endsWith('.jsx') || f.name.endsWith('.ts') || f.name.endsWith('.tsx'));
+    const jsContent = jsFile?.content || '';
+    const isJsx = jsFile && (jsFile.name.endsWith('.jsx') || jsFile.name.endsWith('.tsx'));
+    
+    // Auto-inject frameworks based on template if missing
+    let headInjects = '';
+    const tpl = proj.template || 'vanilla';
+    
+    if (tpl === 'tailwind' && !htmlContent.includes('cdn.tailwindcss.com')) {
+        headInjects += '<script src="https://cdn.tailwindcss.com"></script>
+';
+    } else if (tpl === 'react') {
+        if (!htmlContent.includes('react.development.js')) {
+            headInjects += '<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+';
+            headInjects += '<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+';
+        }
+        if (!htmlContent.includes('@babel/standalone')) {
+            headInjects += '<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+';
+        }
+    } else if (tpl === 'vue' && !htmlContent.includes('vue.global.js')) {
+        headInjects += '<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+';
+    }
+    
+    if (headInjects) {
+        htmlContent = htmlContent.replace('</head>', `${headInjects}</head>`);
+    }
+    
+    // Remove local script tags pointing to app.js/app.jsx to avoid 404s in blob
+    htmlContent = htmlContent.replace(/<script[^>]*src=["'].*?(?:app\.js|app\.jsx)["'][^>]*><\/script>/gi, '');
     
     // Inject CSS
     if (cssContent && !htmlContent.includes('<style id="injected-css">')) {
-        htmlContent = htmlContent.replace('</head>', `<style id="injected-css">\n${cssContent}\n</style></head>`);
+        htmlContent = htmlContent.replace('</head>', `<style id="injected-css">
+${cssContent}
+</style></head>`);
     }
     // Inject JS
-    if (jsContent && !htmlContent.includes('<script id="injected-js">')) {
-        htmlContent = htmlContent.replace('</body>', `<script id="injected-js">\n${jsContent}\n</script></body>`);
+    if (jsContent && !htmlContent.includes('<script id="injected-js"')) {
+        const scriptType = (tpl === 'react' || isJsx) ? 'text/babel' : 'text/javascript';
+        htmlContent = htmlContent.replace('</body>', `<script id="injected-js" type="${scriptType}">
+${jsContent}
+</script></body>`);
     }
     
     const blob = new Blob([htmlContent], { type: 'text/html' });
