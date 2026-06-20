@@ -221,6 +221,8 @@ const state = {
     maxMode: false,
     // Last used template
     lastUsedTemplate: null,
+    // Image attachments staged for the next message
+    pendingImages: [], // [{ id, dataUrl, name }]
 };
 
 // ===== PERSISTENCE =====
@@ -575,6 +577,7 @@ function openProject(id) {
     if (!proj) return;
     state.currentProjectId = id;
     document.getElementById('project-title').textContent = proj.name;
+    clearPendingImages();
 
     const chatEl = document.getElementById('chat-messages');
     chatEl.innerHTML = `
@@ -585,7 +588,7 @@ function openProject(id) {
         </div>`;
     proj.chatHistory = cleanHistory(proj.chatHistory);
     save();
-    (proj.chatHistory || []).forEach(m => appendMsg(m.role, m.content, m.time, false));
+    (proj.chatHistory || []).forEach(m => appendMsg(m.role, m.content, m.time, false, m.images));
 
     state.diffMode = false;
     state.prevFileContent = {};
@@ -1167,27 +1170,184 @@ function cleanHistory(history) {
 }
 
 // ===== CHAT =====
-function appendMsg(role, content, time, doSave = true) {
+function appendMsg(role, content, time, doSave = true, images = null) {
     const container = document.getElementById('chat-messages');
     container.querySelector('.welcome-message')?.remove();
 
     const div = document.createElement('div');
     div.className = `chat-msg chat-msg--${role}`;
     const rendered = role === 'assistant' ? renderMarkdown(content) : esc(content).replace(/\n/g, '<br>');
-    div.innerHTML = `<div class="chat-bubble">${rendered}</div><span class="chat-msg-time">${time || fmtTime(Date.now())}</span>`;
+
+    const imagesHtml = (images && images.length > 0)
+        ? `<div class="chat-msg-images">${images.map(img => `<img src="${img.dataUrl}" alt="${esc(img.name || 'image')}" data-lightbox="1">`).join('')}</div>`
+        : '';
+
+    div.innerHTML = `${imagesHtml}<div class="chat-bubble">${rendered}</div><span class="chat-msg-time">${time || fmtTime(Date.now())}</span>`;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
+
+    div.querySelectorAll('img[data-lightbox]').forEach(img => {
+        img.addEventListener('click', () => openLightbox(img.src));
+    });
 
     if (doSave) {
         const proj = getProj();
         if (proj) {
             if (!proj.chatHistory) proj.chatHistory = [];
-            proj.chatHistory.push({ role, content, time: time || fmtTime(Date.now()) });
+            proj.chatHistory.push({ role, content, time: time || fmtTime(Date.now()), images: images || undefined });
             if (proj.chatHistory.length > 80) proj.chatHistory = proj.chatHistory.slice(-80);
             save();
         }
     }
     return div;
+}
+
+function openLightbox(src) {
+    const box = document.createElement('div');
+    box.className = 'image-lightbox';
+    box.innerHTML = `<img src="${src}">`;
+    box.addEventListener('click', () => box.remove());
+    document.body.appendChild(box);
+}
+
+// ===== IMAGE ATTACHMENTS =====
+const MAX_IMAGE_SIZE_MB = 5;
+const MAX_IMAGES_PER_MESSAGE = 4;
+const MAX_IMAGE_DIMENSION = 1568; // resize long edge to this — keeps payload reasonable
+
+function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// Resize/recompress large images client-side before they ever touch the
+// network — keeps API payloads small and avoids hitting provider limits.
+function resizeImageDataUrl(dataUrl, maxDim = MAX_IMAGE_DIMENSION) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            let { width, height } = img;
+            if (width <= maxDim && height <= maxDim) { resolve(dataUrl); return; }
+            const scale = maxDim / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = () => resolve(dataUrl); // fall back to original on decode failure
+        img.src = dataUrl;
+    });
+}
+
+async function addImageFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    if (state.pendingImages.length + files.length > MAX_IMAGES_PER_MESSAGE) {
+        toast(`画像は1メッセージにつき最大${MAX_IMAGES_PER_MESSAGE}枚までです`, 'warning');
+    }
+    const slotsLeft = MAX_IMAGES_PER_MESSAGE - state.pendingImages.length;
+    const toProcess = files.slice(0, Math.max(0, slotsLeft));
+
+    for (const file of toProcess) {
+        if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+            toast(`「${file.name}」は${MAX_IMAGE_SIZE_MB}MBを超えています`, 'error');
+            continue;
+        }
+        try {
+            const raw = await fileToDataUrl(file);
+            const resized = await resizeImageDataUrl(raw);
+            state.pendingImages.push({ id: genId(), dataUrl: resized, name: file.name });
+        } catch (e) {
+            console.error('Image processing failed:', e);
+            toast(`「${file.name}」の読み込みに失敗しました`, 'error');
+        }
+    }
+    renderImagePreviews();
+}
+
+function removePendingImage(id) {
+    state.pendingImages = state.pendingImages.filter(img => img.id !== id);
+    renderImagePreviews();
+}
+
+function renderImagePreviews() {
+    const area = document.getElementById('image-preview-area');
+    const btn = document.getElementById('attach-image-btn');
+    if (state.pendingImages.length === 0) {
+        area.classList.add('hidden');
+        area.innerHTML = '';
+        btn.classList.remove('has-images');
+        return;
+    }
+    area.classList.remove('hidden');
+    btn.classList.add('has-images');
+    area.innerHTML = state.pendingImages.map(img => `
+        <div class="image-preview-item">
+            <img src="${img.dataUrl}" alt="${esc(img.name)}">
+            <button class="image-preview-remove" data-id="${img.id}" title="削除">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+        </div>`).join('');
+    area.querySelectorAll('.image-preview-remove').forEach(b => {
+        b.addEventListener('click', () => removePendingImage(b.dataset.id));
+    });
+}
+
+function clearPendingImages() {
+    state.pendingImages = [];
+    renderImagePreviews();
+}
+
+function initImageAttachments() {
+    const attachBtn = document.getElementById('attach-image-btn');
+    const fileInput = document.getElementById('image-input');
+    const chatInput = document.getElementById('chat-input');
+    const chatPanel = document.querySelector('.chat-panel');
+
+    attachBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+        if (e.target.files.length) addImageFiles(e.target.files);
+        e.target.value = '';
+    });
+
+    // Paste image directly into the textarea
+    chatInput.addEventListener('paste', e => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        const imageItems = Array.from(items).filter(i => i.type.startsWith('image/'));
+        if (imageItems.length === 0) return;
+        e.preventDefault();
+        const files = imageItems.map(i => i.getAsFile()).filter(Boolean);
+        addImageFiles(files);
+    });
+
+    // Drag & drop images onto the chat panel
+    ['dragenter', 'dragover'].forEach(evt => {
+        chatPanel.addEventListener(evt, e => {
+            if (Array.from(e.dataTransfer?.types || []).includes('Files')) {
+                e.preventDefault();
+                chatPanel.classList.add('image-drag-over');
+            }
+        });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+        chatPanel.addEventListener(evt, e => {
+            if (evt === 'drop') e.preventDefault();
+            chatPanel.classList.remove('image-drag-over');
+        });
+    });
+    chatPanel.addEventListener('drop', e => {
+        const files = e.dataTransfer?.files;
+        if (files && files.length) addImageFiles(files);
+    });
 }
 
 function appendSystemMsg(text) {
@@ -1799,20 +1959,41 @@ async function applyFiles(parsedFiles, rawResponse = '') {
 async function sendMessage() {
     const input = document.getElementById('chat-input');
     const text = input.value.trim();
-    if (!text || state.isStreaming) return;
+    const images = state.pendingImages.slice();
+    if (!text && images.length === 0) return;
+    if (state.isStreaming) return;
     if (!state.activeProvider || !state.activeModel) { toast('設定からAPIキーとモデルを登録してください', 'error'); return; }
 
     input.value = ''; input.style.height = '';
-    appendMsg('user', text);
+    clearPendingImages();
+    appendMsg('user', text || '(画像のみ)', null, true, images.length ? images : null);
 
-    await runAI(text);
+    await runAI(text, false, 1, 1, '', images);
 }
 
-async function runAI(userText, isAutoIter = false, iterNum = 1, totalIter = 1, goal = '') {
+// Builds the OpenAI-compatible content array for a message that may
+// include images. If there are no images, returns the plain string so
+// providers/models without vision support keep working unchanged.
+function buildUserContent(text, images) {
+    if (!images || images.length === 0) return text;
+    const content = [];
+    if (text) content.push({ type: 'text', text });
+    images.forEach(img => {
+        content.push({ type: 'image_url', image_url: { url: img.dataUrl } });
+    });
+    return content;
+}
+
+async function runAI(userText, isAutoIter = false, iterNum = 1, totalIter = 1, goal = '', images = null) {
     const proj = getProj();
     if (!proj) return;
 
-    const history = (proj.chatHistory || []).slice(-20).map(m => ({ role: m.role, content: m.content }));
+    // Build history, converting any past messages that carried images into
+    // the multi-part content format so the model keeps visual context.
+    const history = (proj.chatHistory || []).slice(-20).map(m => ({
+        role: m.role,
+        content: m.images && m.images.length ? buildUserContent(m.content, m.images) : m.content,
+    }));
     const sysPrompt = buildSysPrompt(isAutoIter, iterNum, totalIter, goal);
     const messages = [{ role: 'system', content: sysPrompt }, ...history];
     if (isAutoIter) {
@@ -1861,7 +2042,11 @@ async function runAI(userText, isAutoIter = false, iterNum = 1, totalIter = 1, g
         hideTyping();
         hideProg();
         document.getElementById('streaming-msg')?.remove();
-        appendMsg('assistant', `エラーが発生しました:\n${err.message}`);
+        if (err.message && err.message.includes('image') && err.message.match(/support|vision|multimodal/i)) {
+            appendMsg('assistant', `エラーが発生しました:\n${err.message}\n\nこのモデルは画像（Vision）に対応していない可能性があります。画像対応モデル（例: gpt-4o, llama-3.2-90b-vision等）に切り替えてください。`);
+        } else {
+            appendMsg('assistant', `エラーが発生しました:\n${err.message}`);
+        }
         toast(err.message, 'error');
         throw err;
     } finally {
@@ -2150,6 +2335,7 @@ async function init() {
     initResizer();
     initShortcuts();
     initModalTabs();
+    initImageAttachments();
 
     await initMonaco();
 
