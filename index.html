@@ -103,6 +103,14 @@
                 <a class="header-link" href="transparency.html" target="_blank" style="margin-left:12px; font-size:12px; opacity:0.7; color:inherit; text-decoration:none;">透明性レポート</a>
             </div>
             <div class="header-right">
+                <button id="deploy-btn" class="btn btn-deploy btn-sm" title="Netlifyへデプロイ">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    <span class="export-btn-text">公開</span>
+                </button>
+                <button id="hosting-manage-btn" class="btn btn-secondary btn-sm hidden" title="ホスティング管理">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span class="export-btn-text">管理</span>
+                </button>
                 <button id="zip-download-btn" class="btn btn-primary btn-sm" title="全ファイルをZIPでダウンロード">
                     <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     <span class="export-btn-text">ZIPダウンロード</span>
@@ -315,6 +323,7 @@
                 <button class="modal-tab" data-tab="prompt">プロンプト</button>
                 <button class="modal-tab" data-tab="usage">使用量</button>
                 <button class="modal-tab" data-tab="data">データ管理</button>
+                <button class="modal-tab" data-tab="hosting">ホスティング</button>
             </div>
             <div class="modal-body">
                 <!-- API Keys Tab -->
@@ -382,6 +391,16 @@
                     </div>
                     <hr class="divider">
                     <div class="storage-info" id="storage-info"></div>
+                </div>
+                <!-- Hosting Settings Tab -->
+                <div class="modal-tab-content" data-tab="hosting">
+                    <p class="section-desc">Netlify の Personal Access Token を設定すると、プロジェクトをワンクリックで公開できます。<br>トークンは <a href="https://app.netlify.com/user/applications" target="_blank" rel="noopener" style="color:var(--primary)">netlify.com/user/applications</a> から取得できます。</p>
+                    <div class="form-group">
+                        <label for="netlify-token-input">Netlify Personal Access Token</label>
+                        <input type="password" id="netlify-token-input" class="input" placeholder="nfp_xxxxxxxxxxxx..." autocomplete="off">
+                    </div>
+                    <button id="save-netlify-token-btn" class="btn btn-primary btn-sm">トークンを保存</button>
+                    <span id="netlify-token-status" class="save-indicator" style="margin-left:8px;"></span>
                 </div>
             </div>
             <div class="modal-footer">
@@ -606,11 +625,85 @@
     <!-- Hidden file input for import -->
     <input type="file" id="import-file-input" accept=".json" style="display:none">
 
+    <!-- DEPLOY PROGRESS MODAL -->
+    <div id="deploy-modal" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h2 id="deploy-modal-title">デプロイ中...</h2>
+                <button id="deploy-modal-close" class="btn btn-icon hidden">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="deploy-progress-wrap">
+                    <div class="progress-bar" style="margin-bottom:12px"><div id="deploy-progress-fill" class="progress-fill" style="width:0%"></div></div>
+                    <p id="deploy-status-text" class="section-desc">ファイルを準備中...</p>
+                </div>
+                <div id="deploy-result" class="hidden">
+                    <div class="form-group">
+                        <label>公開URL</label>
+                        <div style="display:flex;gap:8px;align-items:center">
+                            <input type="text" id="deploy-url-input" class="input" readonly>
+                            <button id="copy-deploy-url-btn" class="btn btn-secondary btn-sm">コピー</button>
+                            <a id="open-deploy-url-btn" class="btn btn-primary btn-sm" href="#" target="_blank" rel="noopener">開く</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HOSTING MANAGE MODAL -->
+    <div id="hosting-modal" class="modal-overlay hidden">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h2>ホスティング管理</h2>
+                <button id="hosting-modal-close" class="btn btn-icon">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>現在の公開URL</label>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <input type="text" id="hosting-current-url" class="input" readonly>
+                        <a id="hosting-open-url" class="btn btn-secondary btn-sm" href="#" target="_blank" rel="noopener">開く</a>
+                    </div>
+                </div>
+                <hr class="divider">
+                <div class="form-group">
+                    <label for="hosting-domain-input">独自ドメイン</label>
+                    <p class="section-desc">設定したドメインの DNS (CNAME) を Netlify へ向ける必要があります。</p>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <input type="text" id="hosting-domain-input" class="input" placeholder="example.com">
+                        <button id="hosting-domain-save-btn" class="btn btn-primary btn-sm">保存</button>
+                    </div>
+                </div>
+                <hr class="divider">
+                <div class="form-group">
+                    <label>環境変数</label>
+                    <p class="section-desc">Netlify のビルド環境に渡される変数です。フロントエンドのJS からは直接参照できません（Functions やビルドプロセスで利用します）。</p>
+                    <div id="env-vars-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+                    <button id="add-env-var-btn" class="btn btn-secondary btn-sm">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        変数を追加
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="hosting-redeploy-btn" class="btn btn-secondary">再デプロイ</button>
+                <button id="hosting-env-save-btn" class="btn btn-primary">環境変数を保存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Monaco Editor loader -->
     <script>var require = { paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } };</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.nls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="app.js"></script>
+    <script src="hosting.js"></script>
 </body>
 </html>

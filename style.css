@@ -596,3 +596,26 @@ textarea.input{resize:vertical;line-height:1.6}
     outline: 2px dashed var(--accent);
     outline-offset: -4px;
 }
+
+/* === HOSTING / DEPLOY === */
+.btn-deploy {
+    background: linear-gradient(135deg, #00ad9f 0%, #00c7b7 100%);
+    color: #fff;
+    border: none;
+}
+.btn-deploy:hover {
+    background: linear-gradient(135deg, #00c7b7 0%, #00d9c7 100%);
+    transform: translateY(-1px);
+}
+.env-var-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.env-var-row .input {
+    flex: 1;
+    font-size: 12px;
+}
+.env-var-row .btn-icon-sm {
+    flex-shrink: 0;
+}
